@@ -166,6 +166,39 @@ func main() {
 		return
 	}
 
+	// Get selling analysis parameters
+	includeSelling, err := getFloatValue("include_selling")
+	if err != nil {
+		includeSelling = 0 // Default to not including selling analysis
+	}
+
+	var agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax float64
+	if includeSelling > 0 {
+		agentCommission, err = getFloatValue("agent_commission")
+		if err != nil {
+			fmt.Println("Invalid agent commission")
+			return
+		}
+
+		stagingCosts, err = getFloatValue("staging_costs")
+		if err != nil {
+			fmt.Println("Invalid staging costs")
+			return
+		}
+
+		taxFreeLimit, err = getFloatValue("tax_free_limit")
+		if err != nil {
+			fmt.Println("Invalid tax-free limit")
+			return
+		}
+
+		capitalGainsTax, err = getFloatValue("capital_gains_tax")
+		if err != nil {
+			fmt.Println("Invalid capital gains tax rate")
+			return
+		}
+	}
+
 	// Calculate monthly recurring expenses
 	monthlyRecurringExpenses := (totalAnnualExpenses / 12) + monthlyExpenses
 	totalMonthlyBuyingCost := monthlyLoanPayment + monthlyRecurringExpenses
@@ -208,6 +241,12 @@ func main() {
 	fmt.Println("\n=== Net Worth Projections: Buy vs Rent ===")
 	displayComparisonTable(purchasePrice, downpayment, appreciationRate, totalMonths,
 		rentDeposit, investmentReturnRate)
+
+	if includeSelling > 0 {
+		fmt.Println("\n=== Sale Proceeds Analysis ===")
+		displaySaleProceeds(purchasePrice, downpayment, appreciationRate, totalMonths,
+			agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax)
+	}
 }
 
 // getFloatValue gets a float value from currentInputs
@@ -402,19 +441,19 @@ func getPeriods(loanDuration int) []struct {
 		label  string
 		months int
 	}{
-		{"  1 year", 12},
-		{"  2 years", 24},
-		{"  3 years", 36},
-		{"  4 years", 48},
-		{"  5 years", 60},
-		{"  6 years", 72},
-		{"  7 years", 84},
-		{"  8 years", 96},
-		{"  9 years", 108},
-		{" 10 years", 120},
-		{" 15 years", 180},
-		{" 20 years", 240},
-		{" 30 years", 360},
+		{"  1y", 12},
+		{"  2y", 24},
+		{"  3y", 36},
+		{"  4y", 48},
+		{"  5y", 60},
+		{"  6y", 72},
+		{"  7y", 84},
+		{"  8y", 96},
+		{"  9y", 108},
+		{" 10y", 120},
+		{" 15y", 180},
+		{" 20y", 240},
+		{" 30y", 360},
 	}
 
 	// Build the final list of periods, inserting loan term if needed
@@ -427,11 +466,11 @@ func getPeriods(loanDuration int) []struct {
 	var loanTermLabel string
 	if loanDuration%12 == 0 {
 		years := loanDuration / 12
-		loanTermLabel = fmt.Sprintf("X %d years", years)
+		loanTermLabel = fmt.Sprintf("X %dy", years)
 	} else {
 		years := loanDuration / 12
 		months := loanDuration % 12
-		loanTermLabel = fmt.Sprintf("X %dy %dm", years, months)
+		loanTermLabel = fmt.Sprintf("X %dy%dm", years, months)
 	}
 
 	inserted := false
@@ -565,6 +604,57 @@ func displayComparisonTable(purchasePrice, downpayment, appreciationRate float64
 			formatCurrency(cumulativeSavings),
 			formatCurrency(rentingNetWorth),
 			formatCurrency(difference),
+		)
+	}
+}
+
+// displaySaleProceeds displays the proceeds from selling the property at various periods
+func displaySaleProceeds(purchasePrice, downpayment, appreciationRate float64, loanDuration int,
+	agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax float64) {
+	periods := getPeriods(loanDuration)
+
+	// Print table header
+	fmt.Printf("\n%-15s %-18s %-18s %-18s %-18s %-18s %-18s %-18s\n",
+		"Period", "Sale Price", "Agent Comm", "Selling Costs", "Loan Payoff", "Capital Gains", "Tax on Gains", "Net Proceeds")
+	fmt.Println(strings.Repeat("-", 145))
+
+	// Print each row
+	for _, period := range periods {
+		// Calculate asset value (sale price)
+		years := float64(period.months) / 12.0
+		salePrice := purchasePrice * math.Pow(1+(appreciationRate/100), years)
+
+		// Calculate agent commission
+		agentFee := salePrice * (agentCommission / 100)
+
+		// Get remaining loan balance
+		monthIndex := period.months - 1
+		if monthIndex >= len(remainingLoanBalance) {
+			monthIndex = len(remainingLoanBalance) - 1
+		}
+		loanPayoff := remainingLoanBalance[monthIndex]
+
+		// Calculate capital gains
+		capitalGains := salePrice - purchasePrice
+
+		// Calculate taxable gains (after exemption)
+		taxableGains := math.Max(0, capitalGains-taxFreeLimit)
+
+		// Calculate tax on gains
+		taxOnGains := taxableGains * (capitalGainsTax / 100)
+
+		// Calculate net proceeds
+		netProceeds := salePrice - agentFee - stagingCosts - loanPayoff - taxOnGains
+
+		fmt.Printf("%-15s %-18s %-18s %-18s %-18s %-18s %-18s %-18s\n",
+			"SALE "+period.label,
+			formatCurrency(salePrice),
+			formatCurrency(agentFee),
+			formatCurrency(stagingCosts),
+			formatCurrency(loanPayoff),
+			formatCurrency(capitalGains),
+			formatCurrency(taxOnGains),
+			formatCurrency(netProceeds),
 		)
 	}
 }

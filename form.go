@@ -16,11 +16,14 @@ type FormField struct {
 	Help     string
 	Input    textinput.Model
 	Required bool
+	IsToggle bool
+	Toggled  bool
 }
 
 // FormModel is the bubbletea model for the interactive form
 type FormModel struct {
 	fields       []FormField
+	groups       []FieldGroup
 	currentField int
 	submitted    bool
 	values       map[string]string
@@ -32,26 +35,64 @@ var (
 	blurredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))  // White/bright
 	cursorStyle  = focusedStyle.Copy()
 	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))  // Light grey but still readable
-	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
+	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("34"))
 )
 
-// NewFormModel creates a new form with all the input fields
+// FieldGroup represents a group of related fields
+type FieldGroup struct {
+	Name   string
+	Fields []FormField
+}
+
+// NewFormModel creates a new form with all the input fields organized into groups
 func NewFormModel(defaults map[string]string) FormModel {
-	fields := []FormField{
-		makeField("inflation_rate", "Inflation Rate (%)", "Annual inflation for all recurring costs", defaults),
-		makeField("purchase_price", "Purchase Price ($)", "Property purchase price", defaults),
-		makeField("downpayment", "Downpayment ($)", "Initial payment amount", defaults),
-		makeField("loan_rate", "Loan Rate (%)", "Annual interest rate (e.g., 6.5)", defaults),
-		makeField("loan_duration", "Loan Duration", "Loan term (e.g., 5y, 30y)", defaults),
-		makeField("annual_insurance", "Annual Insurance ($)", "Yearly insurance cost", defaults),
-		makeField("annual_taxes", "Other Annual Costs ($)", "Taxes, HOA fees, etc.", defaults),
-		makeField("monthly_expenses", "Monthly Expenses ($)", "Monthly HOA, utilities, etc.", defaults),
-		makeField("appreciation_rate", "Appreciation Rate (%)", "Annual property value change (e.g., 3 or -2)", defaults),
-		makeField("rent_deposit", "Rental Deposit ($)", "Initial rental deposit", defaults),
-		makeField("monthly_rent", "Monthly Rent ($)", "Base monthly rent amount", defaults),
-		makeField("annual_rent_costs", "Annual Rent Costs ($)", "Yearly rental-related costs", defaults),
-		makeField("other_annual_costs", "Other Annual Costs ($)", "Additional yearly costs for renting", defaults),
-		makeField("investment_return_rate", "Investment Return Rate (%)", "Expected return on investments (e.g., 7)", defaults),
+	// Create field groups
+	groups := []FieldGroup{
+		{
+			Name: "ECONOMIC ASSUMPTIONS",
+			Fields: []FormField{
+				makeField("inflation_rate", "Inflation Rate (%)", "Annual inflation for all recurring costs", defaults),
+			},
+		},
+		{
+			Name: "BUYING",
+			Fields: []FormField{
+				makeField("purchase_price", "Purchase Price ($)", "Property purchase price", defaults),
+				makeField("downpayment", "Downpayment ($)", "Initial payment amount", defaults),
+				makeField("loan_rate", "Loan Rate (%)", "Annual interest rate (e.g., 6.5)", defaults),
+				makeField("loan_duration", "Loan Duration", "Loan term (e.g., 5y, 30y)", defaults),
+				makeField("annual_insurance", "Annual Tax & Insurance ($)", "Yearly insurance cost", defaults),
+				makeField("annual_taxes", "Other Annual Costs ($)", "Taxes, HOA fees, etc.", defaults),
+				makeField("monthly_expenses", "Monthly Expenses ($)", "Monthly HOA, utilities, etc.", defaults),
+				makeField("appreciation_rate", "Appreciation Rate (%)", "Annual property value change (e.g., 3 or -2)", defaults),
+			},
+		},
+		{
+			Name: "RENTING",
+			Fields: []FormField{
+				makeField("rent_deposit", "Rental Deposit ($)", "Initial rental deposit", defaults),
+				makeField("monthly_rent", "Monthly Rent ($)", "Base monthly rent amount", defaults),
+				makeField("annual_rent_costs", "Annual Rent Costs ($)", "Yearly rental-related costs", defaults),
+				makeField("other_annual_costs", "Other Annual Costs ($)", "Additional yearly costs for renting", defaults),
+				makeField("investment_return_rate", "Investment Return Rate (%)", "Expected return on investments (e.g., 7)", defaults),
+			},
+		},
+		{
+			Name: "SELLING",
+			Fields: []FormField{
+				makeToggleField("include_selling", "Include Selling Analysis", "Toggle to enable/disable selling analysis", defaults),
+				makeField("agent_commission", "Agent Commission (%)", "Percentage of sale price paid to agents", defaults),
+				makeField("staging_costs", "Staging/Selling Costs ($)", "Fixed costs to prepare and sell", defaults),
+				makeField("tax_free_limit", "Tax-Free Gains Limit ($)", "Capital gains exempt from tax (250k/500k)", defaults),
+				makeField("capital_gains_tax", "Capital Gains Tax Rate (%)", "Long-term capital gains tax rate", defaults),
+			},
+		},
+	}
+
+	// Flatten fields for easy navigation
+	var fields []FormField
+	for _, group := range groups {
+		fields = append(fields, group.Fields...)
 	}
 
 	// Focus the first field
@@ -59,6 +100,7 @@ func NewFormModel(defaults map[string]string) FormModel {
 
 	return FormModel{
 		fields:       fields,
+		groups:       groups,
 		currentField: 0,
 		submitted:    false,
 		values:       make(map[string]string),
@@ -81,6 +123,27 @@ func makeField(key, label, help string, defaults map[string]string) FormField {
 		Help:     help,
 		Input:    ti,
 		Required: true,
+		IsToggle: false,
+	}
+}
+
+func makeToggleField(key, label, help string, defaults map[string]string) FormField {
+	ti := textinput.New()
+	ti.Width = 30
+
+	toggled := false
+	if val, ok := defaults[key]; ok {
+		toggled = val == "1" || val == "yes" || val == "true"
+	}
+
+	return FormField{
+		Key:      key,
+		Label:    label,
+		Help:     help,
+		Input:    ti,
+		Required: false,
+		IsToggle: true,
+		Toggled:  toggled,
 	}
 }
 
@@ -98,30 +161,47 @@ func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+k":
 			// Save values and submit
 			for _, field := range m.fields {
-				m.values[field.Key] = field.Input.Value()
+				if field.IsToggle {
+					if field.Toggled {
+						m.values[field.Key] = "1"
+					} else {
+						m.values[field.Key] = "0"
+					}
+				} else {
+					m.values[field.Key] = field.Input.Value()
+				}
 			}
 			m.submitted = true
 			return m, tea.Quit
 
-		case "up":
+		case "up", "shift+tab":
 			if m.currentField > 0 {
 				m.fields[m.currentField].Input.Blur()
 				m.currentField--
 				m.fields[m.currentField].Input.Focus()
 			}
 
-		case "down":
+		case "down", "tab":
 			if m.currentField < len(m.fields)-1 {
 				m.fields[m.currentField].Input.Blur()
 				m.currentField++
 				m.fields[m.currentField].Input.Focus()
 			}
+
+		case " ", "enter":
+			// Toggle if current field is a toggle
+			if m.fields[m.currentField].IsToggle {
+				m.fields[m.currentField].Toggled = !m.fields[m.currentField].Toggled
+				return m, nil
+			}
 		}
 	}
 
-	// Update the focused input field
+	// Update the focused input field (but not if it's a toggle)
 	var cmd tea.Cmd
-	m.fields[m.currentField].Input, cmd = m.fields[m.currentField].Input.Update(msg)
+	if !m.fields[m.currentField].IsToggle {
+		m.fields[m.currentField].Input, cmd = m.fields[m.currentField].Input.Update(msg)
+	}
 	return m, cmd
 }
 
@@ -133,44 +213,66 @@ func (m FormModel) View() string {
 	var b strings.Builder
 
 	// Title
-	b.WriteString(titleStyle.Render("┌─────────────────────────────────────────────────────────────────────────────────────────────────┐"))
+	b.WriteString(titleStyle.Render("┌────────────────────────────────────────────────────────────────┐"))
 	b.WriteString("\n")
-	b.WriteString(titleStyle.Render("│                              Rent vs Buy Calculator                                             │"))
+	b.WriteString(titleStyle.Render("│                   Rent vs Buy Calculator                       │"))
 	b.WriteString("\n")
-	b.WriteString(titleStyle.Render("└─────────────────────────────────────────────────────────────────────────────────────────────────┘"))
+	b.WriteString(titleStyle.Render("└────────────────────────────────────────────────────────────────┘"))
 	b.WriteString("\n\n")
 
-	// Render fields in 2 columns
-	for i := 0; i < len(m.fields); i += 2 {
-		// Left column field
-		leftField := m.fields[i]
-		var leftLabel string
-		if i == m.currentField {
-			leftLabel = focusedStyle.Render("❯ " + leftField.Label)
-		} else {
-			leftLabel = blurredStyle.Render("  " + leftField.Label)
-		}
+	// Track field index as we render groups
+	fieldIndex := 0
 
-		// Right column field (if exists)
-		var rightLabel, rightInput string
-		if i+1 < len(m.fields) {
-			rightField := m.fields[i+1]
-			if i+1 == m.currentField {
-				rightLabel = focusedStyle.Render("❯ " + rightField.Label)
-			} else {
-				rightLabel = blurredStyle.Render("  " + rightField.Label)
-			}
-			rightInput = fmt.Sprintf("%-35s", rightField.Input.View())  // Fixed width padding
-		}
-
-		// Print labels side by side (padded to 50 chars each)
-		b.WriteString(fmt.Sprintf("%-50s  %s\n", leftLabel, rightLabel))
-
-		// Print inputs side by side (with fixed spacing)
-		leftInput := fmt.Sprintf("%-35s", leftField.Input.View())  // Fixed width padding
-		b.WriteString(fmt.Sprintf("  %s  %s\n", leftInput, rightInput))
-
+	// Render each group
+	for groupIdx, group := range m.groups {
+		// Group header
+		groupStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("34")).Bold(true)
+		b.WriteString(groupStyle.Render("  " + group.Name))
 		b.WriteString("\n")
+
+		// Render fields in this group (label and input on same line)
+		for i := 0; i < len(group.Fields); i++ {
+			currentFieldIndex := fieldIndex + i
+			field := m.fields[currentFieldIndex]
+
+			// Render label with fixed width
+			var labelText string
+			if currentFieldIndex == m.currentField {
+				labelText = fmt.Sprintf("%-50s", "❯ "+field.Label)
+			} else {
+				labelText = fmt.Sprintf("%-50s", "  "+field.Label)
+			}
+
+			// Render input or toggle
+			var input string
+			if field.IsToggle {
+				checkbox := "[ ]"
+				if field.Toggled {
+					checkbox = "[X]"
+				}
+				input = checkbox
+			} else {
+				input = field.Input.View()
+			}
+
+			// Print label and input on same line with matching colors
+			if currentFieldIndex == m.currentField {
+				b.WriteString(focusedStyle.Render(labelText))
+				b.WriteString(focusedStyle.Render(input))
+			} else {
+				b.WriteString(blurredStyle.Render(labelText))
+				b.WriteString(blurredStyle.Render(input))
+			}
+			b.WriteString("\n")
+		}
+
+		// Add spacing between groups (except after last group)
+		if groupIdx < len(m.groups)-1 {
+			b.WriteString("\n")
+		}
+
+		// Update field index for next group
+		fieldIndex += len(group.Fields)
 	}
 
 	// Show help text for current field at the bottom
@@ -180,7 +282,7 @@ func (m FormModel) View() string {
 	b.WriteString("\n\n")
 
 	// Navigation help
-	b.WriteString(helpStyle.Render("  ↑/↓: Navigate  Ctrl+K: Calculate  Ctrl+C/Esc: Quit"))
+	b.WriteString(helpStyle.Render("  ↑/↓: Navigate  Space/Enter: Toggle  Ctrl+K: Calculate  Ctrl+C/Esc: Quit"))
 	b.WriteString("\n")
 
 	return b.String()
