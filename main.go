@@ -14,6 +14,10 @@ var reader = bufio.NewReader(os.Stdin)
 var defaultIndex = 0
 var savedDefaults []string
 
+// Global arrays for monthly costs
+var monthlyBuyingCosts []float64
+var monthlyRentingCosts []float64
+
 const inputsFile = ".rentobuy_inputs.json"
 
 func main() {
@@ -98,27 +102,78 @@ func main() {
 		return
 	}
 
+	// Get renting parameters
+	fmt.Println("\n--- Renting Parameters ---")
+	rentDeposit, inputStr, err := getFloatInputWithDefault("Enter rental deposit: $")
+	inputs = append(inputs, inputStr)
+	if err != nil {
+		fmt.Println("Invalid deposit amount")
+		return
+	}
+
+	monthlyRent, inputStr, err := getFloatInputWithDefault("Enter monthly rent: $")
+	inputs = append(inputs, inputStr)
+	if err != nil {
+		fmt.Println("Invalid monthly rent")
+		return
+	}
+
+	annualRentCosts, inputStr, err := getFloatInputWithDefault("Enter annual rent costs: $")
+	inputs = append(inputs, inputStr)
+	if err != nil {
+		fmt.Println("Invalid annual rent costs")
+		return
+	}
+
+	otherAnnualCosts, inputStr, err := getFloatInputWithDefault("Enter other annual costs: $")
+	inputs = append(inputs, inputStr)
+	if err != nil {
+		fmt.Println("Invalid other annual costs")
+		return
+	}
+
+	investmentReturnRate, inputStr, err := getFloatInputWithDefault("Enter investment return rate (e.g., 7 for 7%): ")
+	inputs = append(inputs, inputStr)
+	if err != nil {
+		fmt.Println("Invalid investment return rate")
+		return
+	}
+
 	// Save inputs for next time
 	saveInputs(inputs)
 
-	// Calculate monthly payment
+	// Calculate monthly payment for buying
 	monthlyRate := annualRate / 100 / 12
 	monthlyLoanPayment := calculateMonthlyPayment(loanAmount, monthlyRate, totalMonths)
 	monthlyRecurringExpenses := (totalAnnualExpenses / 12) + monthlyExpenses
-	totalMonthlyPayment := monthlyLoanPayment + monthlyRecurringExpenses
+	totalMonthlyBuyingCost := monthlyLoanPayment + monthlyRecurringExpenses
+
+	// Calculate monthly cost for renting
+	monthlyRentingExpenses := (annualRentCosts / 12) + (otherAnnualCosts / 12)
+	totalMonthlyRentingCost := monthlyRent + monthlyRentingExpenses
+
+	// Populate global cost arrays for projections (360 months = 30 years max)
+	populateMonthlyCosts(360, monthlyLoanPayment, monthlyRecurringExpenses, totalMonths, totalMonthlyRentingCost)
 
 	// Display results
-	fmt.Println("\n=== Loan Details ===")
+	fmt.Println("\n=== Buying Details ===")
 	fmt.Printf("Loan amount: %s\n", formatCurrency(loanAmount))
 	fmt.Printf("Annual interest rate: %.2f%%\n", annualRate)
 	fmt.Printf("Loan duration: %s months\n", formatNumber(totalMonths))
 	fmt.Printf("\nMonthly loan payment: %s\n", formatCurrency(monthlyLoanPayment))
 	fmt.Printf("Monthly recurring expenses: %s\n", formatCurrency(monthlyRecurringExpenses))
-	fmt.Printf("Total monthly payment: %s\n", formatCurrency(totalMonthlyPayment))
+	fmt.Printf("Total monthly buying cost: %s\n", formatCurrency(totalMonthlyBuyingCost))
+
+	fmt.Println("\n=== Renting Details ===")
+	fmt.Printf("Rental deposit: %s\n", formatCurrency(rentDeposit))
+	fmt.Printf("Monthly rent: %s\n", formatCurrency(monthlyRent))
+	fmt.Printf("Monthly rent expenses: %s\n", formatCurrency(monthlyRentingExpenses))
+	fmt.Printf("Total monthly renting cost: %s\n", formatCurrency(totalMonthlyRentingCost))
 
 	// Display projections
-	fmt.Println("\n=== Net Worth Projections ===")
-	displayNetWorthTable(purchasePrice, downpayment, monthlyLoanPayment, monthlyRecurringExpenses, appreciationRate, totalMonths)
+	fmt.Println("\n=== Net Worth Projections: Buy vs Rent ===")
+	displayComparisonTable(purchasePrice, downpayment, appreciationRate, totalMonths,
+		rentDeposit, investmentReturnRate)
 }
 
 // getInputWithDefault prompts the user and reads string input with default value support
@@ -330,8 +385,95 @@ func calculateMonthlyPayment(principal, monthlyRate float64, months int) float64
 	return monthlyPayment
 }
 
+// displayComparisonTable displays buy vs rent net worth projections side-by-side
+// Uses global monthlyBuyingCosts and monthlyRentingCosts arrays
+func displayComparisonTable(purchasePrice, downpayment, appreciationRate float64, loanDuration int,
+	rentDeposit, investmentReturnRate float64) {
+	// Define standard periods
+	standardPeriods := []struct {
+		label  string
+		months int
+	}{
+		{"1 year", 12},
+		{"3 years", 36},
+		{"5 years", 60},
+		{"10 years", 120},
+		{"20 years", 240},
+		{"30 years", 360},
+	}
+
+	// Build the final list of periods, inserting loan term if needed
+	periods := []struct {
+		label  string
+		months int
+	}{}
+
+	loanTermLabel := fmt.Sprintf("Loan term (%d years)", loanDuration/12)
+	if loanDuration%12 != 0 {
+		years := loanDuration / 12
+		months := loanDuration % 12
+		loanTermLabel = fmt.Sprintf("Loan term (%dy %dm)", years, months)
+	}
+
+	inserted := false
+	for _, period := range standardPeriods {
+		// Insert loan term before the first period that's longer
+		if !inserted && loanDuration < period.months && loanDuration > 0 {
+			periods = append(periods, struct {
+				label  string
+				months int
+			}{loanTermLabel, loanDuration})
+			inserted = true
+		}
+
+		// Skip if this period matches the loan duration
+		if period.months == loanDuration {
+			periods = append(periods, struct {
+				label  string
+				months int
+			}{loanTermLabel, loanDuration})
+			inserted = true
+		} else {
+			periods = append(periods, period)
+		}
+	}
+
+	// If loan term is longer than all standard periods, add it at the end
+	if !inserted && loanDuration > 0 {
+		periods = append(periods, struct {
+			label  string
+			months int
+		}{loanTermLabel, loanDuration})
+	}
+
+	// Print table header
+	fmt.Printf("\n%-20s %-25s %-25s %-25s\n", "Period", "Buying Net Worth", "Renting Net Worth", "Difference")
+	fmt.Println(strings.Repeat("-", 95))
+
+	// Print each row
+	for _, period := range periods {
+		_, _, buyingNetWorth := calculateNetWorth(
+			period.months, purchasePrice, downpayment, appreciationRate,
+		)
+
+		rentingNetWorth := calculateRentingNetWorth(
+			period.months, downpayment, rentDeposit, investmentReturnRate,
+		)
+
+		difference := buyingNetWorth - rentingNetWorth
+
+		fmt.Printf("%-20s %-25s %-25s %-25s\n",
+			period.label,
+			formatCurrency(buyingNetWorth),
+			formatCurrency(rentingNetWorth),
+			formatCurrency(difference),
+		)
+	}
+}
+
 // displayNetWorthTable displays net worth projections in a table format
-func displayNetWorthTable(purchasePrice, downpayment, monthlyLoanPayment, monthlyRecurringExpenses, appreciationRate float64, loanDuration int) {
+// Uses global monthlyBuyingCosts array
+func displayNetWorthTable(purchasePrice, downpayment, appreciationRate float64, loanDuration int) {
 	// Define standard periods
 	standardPeriods := []struct {
 		label  string
@@ -396,7 +538,7 @@ func displayNetWorthTable(purchasePrice, downpayment, monthlyLoanPayment, monthl
 	// Print each row
 	for _, period := range periods {
 		assetValue, totalExpenditure, netWorth := calculateNetWorth(
-			period.months, purchasePrice, downpayment, monthlyLoanPayment, monthlyRecurringExpenses, appreciationRate, loanDuration,
+			period.months, purchasePrice, downpayment, appreciationRate,
 		)
 
 		fmt.Printf("%-20s %-20s %-20s %-20s\n",
@@ -409,28 +551,66 @@ func displayNetWorthTable(purchasePrice, downpayment, monthlyLoanPayment, monthl
 }
 
 // calculateNetWorth calculates the asset value, total expenditure, and net worth for a given time period
-func calculateNetWorth(months int, purchasePrice, downpayment, monthlyLoanPayment, monthlyRecurringExpenses, appreciationRate float64, loanDuration int) (float64, float64, float64) {
+// Uses the global monthlyBuyingCosts array
+func calculateNetWorth(months int, purchasePrice, downpayment, appreciationRate float64) (float64, float64, float64) {
 	// Calculate years for appreciation (asset continues to appreciate beyond loan term)
 	years := float64(months) / 12.0
 
 	// Calculate asset value with appreciation/depreciation
 	assetValue := purchasePrice * math.Pow(1+(appreciationRate/100), years)
 
-	// Calculate loan payments (capped at loan duration)
-	loanPaymentMonths := months
-	if months > loanDuration {
-		loanPaymentMonths = loanDuration
+	// Calculate total expenditure by summing monthly costs from array
+	totalExpenditure := downpayment
+	for i := 0; i < months; i++ {
+		totalExpenditure += monthlyBuyingCosts[i]
 	}
-	totalLoanPayments := monthlyLoanPayment * float64(loanPaymentMonths)
-
-	// Calculate recurring expenses (continue for the entire period, even beyond loan term)
-	totalRecurringExpenses := monthlyRecurringExpenses * float64(months)
-
-	// Calculate total expenditure (downpayment + loan payments + recurring expenses)
-	totalExpenditure := downpayment + totalLoanPayments + totalRecurringExpenses
 
 	// Calculate net worth
 	netWorth := assetValue - totalExpenditure
 
 	return assetValue, totalExpenditure, netWorth
+}
+
+// populateMonthlyCosts fills global arrays with monthly costs for buying and renting
+func populateMonthlyCosts(maxMonths int, monthlyLoanPayment, monthlyRecurringExpenses float64, loanDuration int, monthlyRentingCost float64) {
+	monthlyBuyingCosts = make([]float64, maxMonths)
+	monthlyRentingCosts = make([]float64, maxMonths)
+
+	for i := 0; i < maxMonths; i++ {
+		// Renting cost is constant every month
+		monthlyRentingCosts[i] = monthlyRentingCost
+
+		// Buying cost: loan payment stops after loan duration, but recurring expenses continue
+		if i < loanDuration {
+			monthlyBuyingCosts[i] = monthlyLoanPayment + monthlyRecurringExpenses
+		} else {
+			// After loan is paid off, only recurring expenses remain
+			monthlyBuyingCosts[i] = monthlyRecurringExpenses
+		}
+	}
+}
+
+// calculateRentingNetWorth calculates net worth for the renting scenario
+// Uses month-by-month calculation: investment grows from downpayment + monthly savings
+func calculateRentingNetWorth(months int, downpayment, rentDeposit, investmentReturnRate float64) float64 {
+	// Start with downpayment minus deposit as initial investment
+	investmentValue := downpayment - rentDeposit
+	monthlyInvestmentRate := investmentReturnRate / 100 / 12
+
+	// For each month: calculate savings, add to investment, grow investment
+	for i := 0; i < months; i++ {
+		// Monthly savings = buying cost - renting cost
+		monthlySavings := monthlyBuyingCosts[i] - monthlyRentingCosts[i]
+
+		// Add savings to investment
+		investmentValue += monthlySavings
+
+		// Apply monthly growth
+		investmentValue *= (1 + monthlyInvestmentRate)
+	}
+
+	// Add back 75% of deposit (recoverable)
+	recoverableDeposit := rentDeposit * 0.75
+
+	return investmentValue + recoverableDeposit
 }
