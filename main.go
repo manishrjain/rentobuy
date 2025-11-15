@@ -34,30 +34,42 @@ func main() {
 	savedDefaults = loadInputs()
 	currentInputs = make(map[string]string)
 
-	// Check if we have defaults when --defaults flag is used
-	if useDefaults && len(savedDefaults) == 0 {
-		fmt.Println("Error: --defaults flag used but no saved defaults found. Run without the flag first.")
-		return
+	// If not using defaults, show interactive form
+	if !useDefaults {
+		values, err := RunInteractiveForm(savedDefaults)
+		if err != nil {
+			fmt.Println("Form cancelled or error:", err)
+			return
+		}
+		currentInputs = values
+		// Save the inputs for next time
+		saveInputs(currentInputs)
+	} else {
+		// Check if we have defaults when --defaults flag is used
+		if len(savedDefaults) == 0 {
+			fmt.Println("Error: --defaults flag used but no saved defaults found. Run without the flag first.")
+			return
+		}
+		// Use saved defaults
+		currentInputs = savedDefaults
 	}
 
-	// Get inflation rate first
-	fmt.Println("\n--- Economic Assumptions ---")
-	inflationRate, err := getFloatInputWithDefault("inflation_rate", "Enter annual inflation rate (e.g., 3 for 3%): ")
+	// Parse all inputs from currentInputs
+	var err error
+
+	inflationRate, err := getFloatValue("inflation_rate")
 	if err != nil {
 		fmt.Println("Invalid inflation rate")
 		return
 	}
-	fmt.Println("Note: All recurring costs (insurance, taxes, HOA, etc.) will increase annually at this rate.")
 
-	// Get purchase price
-	purchasePrice, err := getFloatInputWithDefault("purchase_price", "\nEnter purchase price: $")
+	purchasePrice, err := getFloatValue("purchase_price")
 	if err != nil {
 		fmt.Println("Invalid purchase price")
 		return
 	}
 
-	// Get downpayment
-	downpayment, err := getFloatInputWithDefault("downpayment", "Enter downpayment: $")
+	downpayment, err := getFloatValue("downpayment")
 	if err != nil {
 		fmt.Println("Invalid downpayment")
 		return
@@ -79,14 +91,14 @@ func main() {
 		monthlyLoanPayment = 0
 	} else {
 		// Get loan rate
-		annualRate, err = getFloatInputWithDefault("loan_rate", "Enter loan rate percentage (e.g., 6.5 for 6.5%): ")
+		annualRate, err = getFloatValue("loan_rate")
 		if err != nil {
 			fmt.Println("Invalid loan rate")
 			return
 		}
 
 		// Get loan duration
-		totalMonths, err = getStringInputAndParseWithDefault("loan_duration", "Enter loan duration (e.g., 5y6m for 5 years 6 months): ", parseDuration)
+		totalMonths, err = getIntValue("loan_duration", parseDuration)
 		if err != nil {
 			fmt.Println("Invalid duration format:", err)
 			return
@@ -97,15 +109,14 @@ func main() {
 		monthlyLoanPayment = calculateMonthlyPayment(loanAmount, monthlyRate, totalMonths)
 	}
 
-	// Get annual expenses
-	fmt.Println("\n--- Annual Fixed Expenses ---")
-	annualInsurance, err := getFloatInputWithDefault("annual_insurance", "Enter annual insurance cost: $")
+	// Get all remaining values
+	annualInsurance, err := getFloatValue("annual_insurance")
 	if err != nil {
 		fmt.Println("Invalid insurance amount")
 		return
 	}
 
-	annualTaxes, err := getFloatInputWithDefault("annual_taxes", "Enter other annual costs (taxes, etc.): $")
+	annualTaxes, err := getFloatValue("annual_taxes")
 	if err != nil {
 		fmt.Println("Invalid taxes amount")
 		return
@@ -113,56 +124,47 @@ func main() {
 
 	totalAnnualExpenses := annualInsurance + annualTaxes
 
-	// Get monthly expenses
-	fmt.Println("\n--- Monthly Fixed Expenses ---")
-	monthlyExpenses, err := getFloatInputWithDefault("monthly_expenses", "Enter monthly fixed expenses (HOA, utilities, etc.): $")
+	monthlyExpenses, err := getFloatValue("monthly_expenses")
 	if err != nil {
 		fmt.Println("Invalid monthly expenses")
 		return
 	}
 
-	// Get asset appreciation rate
-	fmt.Println("\n--- Asset Appreciation ---")
-	appreciationRate, err := getFloatInputWithDefault("appreciation_rate", "Enter annual appreciation rate (e.g., 3 for 3%, -2 for -2% depreciation): ")
+	appreciationRate, err := getFloatValue("appreciation_rate")
 	if err != nil {
 		fmt.Println("Invalid appreciation rate")
 		return
 	}
 
-	// Get renting parameters
-	fmt.Println("\n--- Renting Parameters ---")
-	rentDeposit, err := getFloatInputWithDefault("rent_deposit", "Enter rental deposit: $")
+	rentDeposit, err := getFloatValue("rent_deposit")
 	if err != nil {
 		fmt.Println("Invalid deposit amount")
 		return
 	}
 
-	monthlyRent, err := getFloatInputWithDefault("monthly_rent", "Enter monthly rent: $")
+	monthlyRent, err := getFloatValue("monthly_rent")
 	if err != nil {
 		fmt.Println("Invalid monthly rent")
 		return
 	}
 
-	annualRentCosts, err := getFloatInputWithDefault("annual_rent_costs", "Enter annual rent costs: $")
+	annualRentCosts, err := getFloatValue("annual_rent_costs")
 	if err != nil {
 		fmt.Println("Invalid annual rent costs")
 		return
 	}
 
-	otherAnnualCosts, err := getFloatInputWithDefault("other_annual_costs", "Enter other annual costs: $")
+	otherAnnualCosts, err := getFloatValue("other_annual_costs")
 	if err != nil {
 		fmt.Println("Invalid other annual costs")
 		return
 	}
 
-	investmentReturnRate, err := getFloatInputWithDefault("investment_return_rate", "Enter investment return rate (e.g., 7 for 7%): ")
+	investmentReturnRate, err := getFloatValue("investment_return_rate")
 	if err != nil {
 		fmt.Println("Invalid investment return rate")
 		return
 	}
-
-	// Save inputs for next time
-	saveInputs(currentInputs)
 
 	// Calculate monthly recurring expenses
 	monthlyRecurringExpenses := (totalAnnualExpenses / 12) + monthlyExpenses
@@ -208,52 +210,22 @@ func main() {
 		rentDeposit, investmentReturnRate)
 }
 
-// getInputWithDefault prompts the user and reads string input with default value support
-// Uses the key to retrieve the appropriate default value from savedDefaults
-func getInputWithDefault(key, prompt string) string {
-	defaultValue := savedDefaults[key]
-
-	// If --defaults flag is set, automatically use the default
+// getFloatValue gets a float value from currentInputs
+func getFloatValue(key string) (float64, error) {
+	input := currentInputs[key]
 	if useDefaults {
-		if defaultValue != "" {
-			fmt.Printf("%s%s (using default)\n", prompt, defaultValue)
-			currentInputs[key] = defaultValue
-			return defaultValue
-		}
-		// No default available but flag is set - this shouldn't happen due to check in main
-		fmt.Printf("%s(no default available)\n", prompt)
-		currentInputs[key] = ""
-		return ""
+		fmt.Printf("Using %s: %s\n", key, input)
 	}
-
-	if defaultValue != "" {
-		fmt.Printf("%s[%s] ", prompt, defaultValue)
-	} else {
-		fmt.Print(prompt)
-	}
-
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	// If empty and we have a default, use the default
-	if input == "" && defaultValue != "" {
-		input = defaultValue
-	}
-
-	currentInputs[key] = input
-	return input
-}
-
-// getFloatInputWithDefault prompts with a default and converts to float
-func getFloatInputWithDefault(key, prompt string) (float64, error) {
-	input := getInputWithDefault(key, prompt)
 	value, err := parseAmount(input)
 	return value, err
 }
 
-// getStringInputAndParseWithDefault prompts with a default and applies parser
-func getStringInputAndParseWithDefault(key, prompt string, parser func(string) (int, error)) (int, error) {
-	input := getInputWithDefault(key, prompt)
+// getIntValue gets an int value from currentInputs with a parser
+func getIntValue(key string, parser func(string) (int, error)) (int, error) {
+	input := currentInputs[key]
+	if useDefaults {
+		fmt.Printf("Using %s: %s\n", key, input)
+	}
 	value, err := parser(input)
 	return value, err
 }
@@ -516,7 +488,7 @@ func displayAmortizationTable(loanAmount float64, loanDuration int) {
 		loanBalance := remainingLoanBalance[monthIndex]
 
 		fmt.Printf("%-20s %-20s %-20s %-20s\n",
-			period.label,
+			"LOAN "+period.label,
 			formatCurrency(principalPaid),
 			formatCurrency(interestPaid),
 			formatCurrency(loanBalance),
@@ -550,7 +522,7 @@ func displayExpenditureTable(downpayment float64, loanDuration int, rentDeposit 
 		difference := buyingExpenditure - rentingExpenditure
 
 		fmt.Printf("%-20s %-25s %-25s %-25s\n",
-			period.label,
+			"EXP "+period.label,
 			formatCurrency(buyingExpenditure),
 			formatCurrency(rentingExpenditure),
 			formatCurrency(difference),
@@ -587,7 +559,7 @@ func displayComparisonTable(purchasePrice, downpayment, appreciationRate float64
 		difference := rentingNetWorth - buyingNetWorth
 
 		fmt.Printf("%-15s %-18s %-18s %-18s %-18s %-18s\n",
-			period.label,
+			"NET "+period.label,
 			formatCurrency(assetValue),
 			formatCurrency(buyingNetWorth),
 			formatCurrency(cumulativeSavings),
