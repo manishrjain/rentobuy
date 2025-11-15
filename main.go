@@ -15,7 +15,6 @@ var reader = bufio.NewReader(os.Stdin)
 var savedDefaults map[string]string
 var currentInputs map[string]string
 var useDefaults bool
-var debugMode bool
 
 // Global arrays for monthly costs
 var monthlyBuyingCosts []float64
@@ -29,7 +28,6 @@ const inputsFile = ".rentobuy_inputs.json"
 func main() {
 	// Parse command line flags
 	flag.BoolVar(&useDefaults, "defaults", false, "Use all previously saved default values without prompting")
-	flag.BoolVar(&debugMode, "debug", false, "Show detailed debugging information including principal paid off")
 	flag.Parse()
 
 	// Load previous inputs
@@ -200,7 +198,7 @@ func main() {
 	fmt.Println("\n=== Total Expenditure Comparison ===")
 	displayExpenditureTable(downpayment, totalMonths, rentDeposit)
 
-	if debugMode && loanAmount > 0 {
+	if loanAmount > 0 {
 		fmt.Println("\n=== Loan Amortization Details ===")
 		displayAmortizationTable(loanAmount, totalMonths)
 	}
