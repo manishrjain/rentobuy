@@ -210,24 +210,11 @@ func main() {
 	// Populate global cost arrays for projections (360 months = 30 years max)
 	populateMonthlyCosts(360, monthlyLoanPayment, monthlyRecurringExpenses, totalMonths, totalMonthlyRentingCost, loanAmount, monthlyRate, inflationRate)
 
-	// Display results
-	fmt.Println("\n=== Buying Details ===")
-	if loanAmount > 0 {
-		fmt.Printf("Loan amount: %s\n", formatCurrency(loanAmount))
-		fmt.Printf("Annual interest rate: %.2f%%\n", annualRate)
-		fmt.Printf("Loan duration: %s months\n", formatNumber(totalMonths))
-		fmt.Printf("\nMonthly loan payment: %s\n", formatCurrency(monthlyLoanPayment))
-	} else {
-		fmt.Printf("Loan amount: %s (no loan needed)\n", formatCurrency(loanAmount))
-	}
-	fmt.Printf("Monthly recurring expenses: %s\n", formatCurrency(monthlyRecurringExpenses))
-	fmt.Printf("Total monthly buying cost: %s\n", formatCurrency(totalMonthlyBuyingCost))
-
-	fmt.Println("\n=== Renting Details ===")
-	fmt.Printf("Rental deposit: %s\n", formatCurrency(rentDeposit))
-	fmt.Printf("Monthly rent: %s\n", formatCurrency(monthlyRent))
-	fmt.Printf("Monthly rent expenses: %s\n", formatCurrency(monthlyRentingExpenses))
-	fmt.Printf("Total monthly renting cost: %s\n", formatCurrency(totalMonthlyRentingCost))
+	// Display input parameters
+	displayInputParameters(inflationRate, purchasePrice, downpayment, loanAmount, annualRate, totalMonths,
+		annualInsurance, annualTaxes, monthlyExpenses, appreciationRate, totalMonthlyBuyingCost,
+		rentDeposit, monthlyRent, annualRentCosts, otherAnnualCosts, investmentReturnRate, totalMonthlyRentingCost,
+		includeSelling, agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax)
 
 	// Display projections
 	fmt.Println("\n=== Total Expenditure Comparison ===")
@@ -507,6 +494,58 @@ func getPeriods(loanDuration int) []struct {
 	return periods
 }
 
+// displayInputParameters displays all input parameters in grouped format
+func displayInputParameters(inflationRate, purchasePrice, downpayment, loanAmount, annualRate float64, loanDuration int,
+	annualInsurance, annualTaxes, monthlyExpenses, appreciationRate, totalMonthlyBuyingCost,
+	rentDeposit, monthlyRent, annualRentCosts, otherAnnualCosts, investmentReturnRate, totalMonthlyRentingCost,
+	includeSelling, agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax float64) {
+
+	fmt.Println("\n=== INPUT PARAMETERS ===")
+
+	fmt.Println("\nECONOMIC ASSUMPTIONS")
+	fmt.Printf("  Inflation Rate: %.2f%%\n", inflationRate)
+
+	fmt.Println("\nBUYING")
+	fmt.Printf("  Purchase Price: %s\n", formatCurrency(purchasePrice))
+	fmt.Printf("  Downpayment: %s\n", formatCurrency(downpayment))
+	fmt.Printf("  Loan Amount: %s\n", formatCurrency(loanAmount))
+	fmt.Printf("  Loan Rate: %.2f%%\n", annualRate)
+
+	// Format loan duration
+	loanDurationStr := ""
+	if loanDuration%12 == 0 {
+		loanDurationStr = fmt.Sprintf("%dy", loanDuration/12)
+	} else {
+		loanDurationStr = fmt.Sprintf("%d months", loanDuration)
+	}
+	fmt.Printf("  Loan Duration: %s\n", loanDurationStr)
+	fmt.Printf("  Annual Tax & Insurance: %s\n", formatCurrency(annualInsurance))
+	fmt.Printf("  Other Annual Costs: %s\n", formatCurrency(annualTaxes))
+	fmt.Printf("  Monthly Expenses: %s\n", formatCurrency(monthlyExpenses))
+	fmt.Printf("  Appreciation Rate: %.2f%%\n", appreciationRate)
+	fmt.Printf("  Total Monthly Cost: %s\n", formatCurrency(totalMonthlyBuyingCost))
+
+	fmt.Println("\nRENTING")
+	fmt.Printf("  Rental Deposit: %s\n", formatCurrency(rentDeposit))
+	fmt.Printf("  Monthly Rent: %s\n", formatCurrency(monthlyRent))
+	fmt.Printf("  Annual Rent Costs: %s\n", formatCurrency(annualRentCosts))
+	fmt.Printf("  Other Annual Costs: %s\n", formatCurrency(otherAnnualCosts))
+	fmt.Printf("  Investment Return Rate: %.2f%%\n", investmentReturnRate)
+	fmt.Printf("  Total Monthly Cost: %s\n", formatCurrency(totalMonthlyRentingCost))
+
+	if includeSelling > 0 {
+		fmt.Println("\nSELLING")
+		fmt.Printf("  Include Selling Analysis: Yes\n")
+		fmt.Printf("  Agent Commission: %.2f%%\n", agentCommission)
+		fmt.Printf("  Staging/Selling Costs: %s\n", formatCurrency(stagingCosts))
+		fmt.Printf("  Tax-Free Gains Limit: %s\n", formatCurrency(taxFreeLimit))
+		fmt.Printf("  Capital Gains Tax Rate: %.2f%%\n", capitalGainsTax)
+	} else {
+		fmt.Println("\nSELLING")
+		fmt.Printf("  Include Selling Analysis: No\n")
+	}
+}
+
 // displayAmortizationTable displays loan amortization details
 func displayAmortizationTable(loanAmount float64, loanDuration int) {
 	periods := getPeriods(loanDuration)
@@ -614,9 +653,9 @@ func displaySaleProceeds(purchasePrice, downpayment, appreciationRate float64, l
 	periods := getPeriods(loanDuration)
 
 	// Print table header
-	fmt.Printf("\n%-15s %-18s %-18s %-18s %-18s %-18s %-18s %-18s\n",
-		"Period", "Sale Price", "Agent Comm", "Selling Costs", "Loan Payoff", "Capital Gains", "Tax on Gains", "Net Proceeds")
-	fmt.Println(strings.Repeat("-", 145))
+	fmt.Printf("\n%-15s %-18s %-18s %-18s %-18s %-18s %-18s\n",
+		"Period", "Sale Price", "Selling Costs", "Loan Payoff", "Capital Gains", "Tax on Gains", "Net Proceeds")
+	fmt.Println(strings.Repeat("-", 127))
 
 	// Print each row
 	for _, period := range periods {
@@ -626,6 +665,9 @@ func displaySaleProceeds(purchasePrice, downpayment, appreciationRate float64, l
 
 		// Calculate agent commission
 		agentFee := salePrice * (agentCommission / 100)
+
+		// Combine agent commission and staging costs into total selling costs
+		totalSellingCosts := agentFee + stagingCosts
 
 		// Get remaining loan balance
 		monthIndex := period.months - 1
@@ -644,13 +686,12 @@ func displaySaleProceeds(purchasePrice, downpayment, appreciationRate float64, l
 		taxOnGains := taxableGains * (capitalGainsTax / 100)
 
 		// Calculate net proceeds
-		netProceeds := salePrice - agentFee - stagingCosts - loanPayoff - taxOnGains
+		netProceeds := salePrice - totalSellingCosts - loanPayoff - taxOnGains
 
-		fmt.Printf("%-15s %-18s %-18s %-18s %-18s %-18s %-18s %-18s\n",
+		fmt.Printf("%-15s %-18s %-18s %-18s %-18s %-18s %-18s\n",
 			"SALE "+period.label,
 			formatCurrency(salePrice),
-			formatCurrency(agentFee),
-			formatCurrency(stagingCosts),
+			formatCurrency(totalSellingCosts),
 			formatCurrency(loanPayoff),
 			formatCurrency(capitalGains),
 			formatCurrency(taxOnGains),
