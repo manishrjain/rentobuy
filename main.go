@@ -22,6 +22,7 @@ var monthlyRentingCosts []float64
 var remainingLoanBalance []float64
 var cumulativePrincipalPaid []float64
 var cumulativeInterestPaid []float64
+var appreciationRates []float64 // Annual appreciation rates
 
 const inputsFile = ".rentobuy_inputs.json"
 
@@ -30,13 +31,24 @@ func main() {
 	flag.BoolVar(&useDefaults, "defaults", false, "Use all previously saved default values without prompting")
 	flag.Parse()
 
+	// Update market data (blocking to ensure we have it for display)
+	marketData, err := updateMarketData()
+	if err != nil {
+		fmt.Println("Warning: Could not fetch market data:", err)
+		// Continue anyway with empty market data
+		marketData = &MarketData{
+			SP500: make(map[string]float64),
+			QQQ:   make(map[string]float64),
+		}
+	}
+
 	// Load previous inputs
 	savedDefaults = loadInputs()
 	currentInputs = make(map[string]string)
 
 	// If not using defaults, show interactive form
 	if !useDefaults {
-		values, err := RunInteractiveForm(savedDefaults)
+		values, err := RunInteractiveForm(savedDefaults, marketData)
 		if err != nil {
 			fmt.Println("Form cancelled or error:", err)
 			return
@@ -55,8 +67,6 @@ func main() {
 	}
 
 	// Parse all inputs from currentInputs
-	var err error
-
 	inflationRate, err := getFloatValue("inflation_rate")
 	if err != nil {
 		fmt.Println("Invalid inflation rate")
@@ -130,9 +140,11 @@ func main() {
 		return
 	}
 
-	appreciationRate, err := getFloatValue("appreciation_rate")
+	// Parse appreciation rates (comma-separated)
+	appreciationRateStr := currentInputs["appreciation_rate"]
+	appreciationRates, err = parseAppreciationRates(appreciationRateStr)
 	if err != nil {
-		fmt.Println("Invalid appreciation rate")
+		fmt.Println("Invalid appreciation rate:", err)
 		return
 	}
 
@@ -212,9 +224,12 @@ func main() {
 
 	// Display input parameters
 	displayInputParameters(inflationRate, purchasePrice, downpayment, loanAmount, annualRate, totalMonths,
-		annualInsurance, annualTaxes, monthlyExpenses, appreciationRate, totalMonthlyBuyingCost,
+		annualInsurance, annualTaxes, monthlyExpenses, totalMonthlyBuyingCost,
 		rentDeposit, monthlyRent, annualRentCosts, otherAnnualCosts, investmentReturnRate, totalMonthlyRentingCost,
-		includeSelling, agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax)
+		includeSelling, agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax, marketData)
+
+	// Display market data after input parameters
+	displayMarketData(marketData)
 
 	// Display projections
 	fmt.Println("\n=== Total Expenditure Comparison ===")
@@ -225,23 +240,20 @@ func main() {
 		displayAmortizationTable(loanAmount, totalMonths)
 	}
 
-	fmt.Println("\n=== Net Worth Projections: Buy vs Rent ===")
-	displayComparisonTable(purchasePrice, downpayment, appreciationRate, totalMonths,
-		rentDeposit, investmentReturnRate)
-
 	if includeSelling > 0 {
 		fmt.Println("\n=== Sale Proceeds Analysis ===")
-		displaySaleProceeds(purchasePrice, downpayment, appreciationRate, totalMonths,
+		displaySaleProceeds(purchasePrice, downpayment, totalMonths,
 			agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax)
 	}
+
+	fmt.Println("\n=== Net Worth Projections: Buy vs Rent ===")
+	displayComparisonTable(purchasePrice, downpayment, totalMonths,
+		rentDeposit, investmentReturnRate)
 }
 
 // getFloatValue gets a float value from currentInputs
 func getFloatValue(key string) (float64, error) {
 	input := currentInputs[key]
-	if useDefaults {
-		fmt.Printf("Using %s: %s\n", key, input)
-	}
 	value, err := parseAmount(input)
 	return value, err
 }
@@ -249,9 +261,6 @@ func getFloatValue(key string) (float64, error) {
 // getIntValue gets an int value from currentInputs with a parser
 func getIntValue(key string, parser func(string) (int, error)) (int, error) {
 	input := currentInputs[key]
-	if useDefaults {
-		fmt.Printf("Using %s: %s\n", key, input)
-	}
 	value, err := parser(input)
 	return value, err
 }
@@ -319,6 +328,33 @@ func parseAmount(input string) (float64, error) {
 	}
 
 	return value * multiplier, nil
+}
+
+// parseAppreciationRates parses comma-separated appreciation rates
+// Returns array where each entry corresponds to a year, with the last entry applying to all future years
+func parseAppreciationRates(input string) ([]float64, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return []float64{0}, nil
+	}
+
+	// Split by comma
+	parts := strings.Split(input, ",")
+	rates := make([]float64, 0, len(parts))
+
+	for _, part := range parts {
+		rate, err := parseAmount(part)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rate '%s': %v", strings.TrimSpace(part), err)
+		}
+		rates = append(rates, rate)
+	}
+
+	if len(rates) == 0 {
+		return []float64{0}, nil
+	}
+
+	return rates, nil
 }
 
 // getStringInputAndParse prompts the user and applies a parser function
@@ -496,9 +532,9 @@ func getPeriods(loanDuration int) []struct {
 
 // displayInputParameters displays all input parameters in grouped format
 func displayInputParameters(inflationRate, purchasePrice, downpayment, loanAmount, annualRate float64, loanDuration int,
-	annualInsurance, annualTaxes, monthlyExpenses, appreciationRate, totalMonthlyBuyingCost,
+	annualInsurance, annualTaxes, monthlyExpenses, totalMonthlyBuyingCost,
 	rentDeposit, monthlyRent, annualRentCosts, otherAnnualCosts, investmentReturnRate, totalMonthlyRentingCost,
-	includeSelling, agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax float64) {
+	includeSelling, agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax float64, md *MarketData) {
 
 	fmt.Println("\n=== INPUT PARAMETERS ===")
 
@@ -522,7 +558,23 @@ func displayInputParameters(inflationRate, purchasePrice, downpayment, loanAmoun
 	fmt.Printf("  Annual Tax & Insurance: %s\n", formatCurrency(annualInsurance))
 	fmt.Printf("  Other Annual Costs: %s\n", formatCurrency(annualTaxes))
 	fmt.Printf("  Monthly Expenses: %s\n", formatCurrency(monthlyExpenses))
-	fmt.Printf("  Appreciation Rate: %.2f%%\n", appreciationRate)
+
+	// Format appreciation rates
+	appreciationRateStr := ""
+	if len(appreciationRates) == 1 {
+		appreciationRateStr = fmt.Sprintf("%.2f%% (all years)", appreciationRates[0])
+	} else {
+		rateStrs := make([]string, len(appreciationRates))
+		for i, rate := range appreciationRates {
+			if i == len(appreciationRates)-1 {
+				rateStrs[i] = fmt.Sprintf("%.2f%% (year %d+)", rate, i+1)
+			} else {
+				rateStrs[i] = fmt.Sprintf("%.2f%% (year %d)", rate, i+1)
+			}
+		}
+		appreciationRateStr = strings.Join(rateStrs, ", ")
+	}
+	fmt.Printf("  Appreciation Rate: %s\n", appreciationRateStr)
 	fmt.Printf("  Total Monthly Cost: %s\n", formatCurrency(totalMonthlyBuyingCost))
 
 	fmt.Println("\nRENTING")
@@ -531,6 +583,16 @@ func displayInputParameters(inflationRate, purchasePrice, downpayment, loanAmoun
 	fmt.Printf("  Annual Rent Costs: %s\n", formatCurrency(annualRentCosts))
 	fmt.Printf("  Other Annual Costs: %s\n", formatCurrency(otherAnnualCosts))
 	fmt.Printf("  Investment Return Rate: %.2f%%\n", investmentReturnRate)
+
+	// Display market averages under investment return rate
+	if md != nil && len(md.SP500) > 0 {
+		sp500Avg, qqqAvg := calculateMarketAverages(md)
+		if sp500Avg > 0 {
+			fmt.Printf("    Market Averages (10y): S&P 500 %.1f%%, QQQ %.1f%%, 60/40 Mix %.1f%%\n",
+				sp500Avg, qqqAvg, (sp500Avg*0.6 + qqqAvg*0.4))
+		}
+	}
+
 	fmt.Printf("  Total Monthly Cost: %s\n", formatCurrency(totalMonthlyRentingCost))
 
 	if includeSelling > 0 {
@@ -610,7 +672,7 @@ func displayExpenditureTable(downpayment float64, loanDuration int, rentDeposit 
 
 // displayComparisonTable displays buy vs rent net worth projections side-by-side
 // Uses global monthlyBuyingCosts and monthlyRentingCosts arrays
-func displayComparisonTable(purchasePrice, downpayment, appreciationRate float64, loanDuration int,
+func displayComparisonTable(purchasePrice, downpayment float64, loanDuration int,
 	rentDeposit, investmentReturnRate float64) {
 	periods := getPeriods(loanDuration)
 
@@ -621,7 +683,7 @@ func displayComparisonTable(purchasePrice, downpayment, appreciationRate float64
 	// Print each row
 	for _, period := range periods {
 		assetValue, _, buyingNetWorth := calculateNetWorth(
-			period.months, purchasePrice, downpayment, appreciationRate,
+			period.months, purchasePrice, downpayment,
 		)
 
 		rentingNetWorth := calculateRentingNetWorth(
@@ -648,7 +710,7 @@ func displayComparisonTable(purchasePrice, downpayment, appreciationRate float64
 }
 
 // displaySaleProceeds displays the proceeds from selling the property at various periods
-func displaySaleProceeds(purchasePrice, downpayment, appreciationRate float64, loanDuration int,
+func displaySaleProceeds(purchasePrice, downpayment float64, loanDuration int,
 	agentCommission, stagingCosts, taxFreeLimit, capitalGainsTax float64) {
 	periods := getPeriods(loanDuration)
 
@@ -659,9 +721,8 @@ func displaySaleProceeds(purchasePrice, downpayment, appreciationRate float64, l
 
 	// Print each row
 	for _, period := range periods {
-		// Calculate asset value (sale price)
-		years := float64(period.months) / 12.0
-		salePrice := purchasePrice * math.Pow(1+(appreciationRate/100), years)
+		// Calculate asset value (sale price) using appreciation rates array
+		salePrice, _, _ := calculateNetWorth(period.months, purchasePrice, downpayment)
 
 		// Calculate agent commission
 		agentFee := salePrice * (agentCommission / 100)
@@ -702,7 +763,7 @@ func displaySaleProceeds(purchasePrice, downpayment, appreciationRate float64, l
 
 // displayNetWorthTable displays net worth projections in a table format
 // Uses global monthlyBuyingCosts array
-func displayNetWorthTable(purchasePrice, downpayment, appreciationRate float64, loanDuration int) {
+func displayNetWorthTable(purchasePrice, downpayment float64, loanDuration int) {
 	// Define standard periods
 	standardPeriods := []struct {
 		label  string
@@ -767,7 +828,7 @@ func displayNetWorthTable(purchasePrice, downpayment, appreciationRate float64, 
 	// Print each row
 	for _, period := range periods {
 		assetValue, totalExpenditure, netWorth := calculateNetWorth(
-			period.months, purchasePrice, downpayment, appreciationRate,
+			period.months, purchasePrice, downpayment,
 		)
 
 		fmt.Printf("%-20s %-20s %-20s %-20s\n",
@@ -781,12 +842,30 @@ func displayNetWorthTable(purchasePrice, downpayment, appreciationRate float64, 
 
 // calculateNetWorth calculates the asset value, total expenditure, and net worth for a given time period
 // Uses the global monthlyBuyingCosts and remainingLoanBalance arrays
-func calculateNetWorth(months int, purchasePrice, downpayment, appreciationRate float64) (float64, float64, float64) {
-	// Calculate years for appreciation (asset continues to appreciate beyond loan term)
-	years := float64(months) / 12.0
+func calculateNetWorth(months int, purchasePrice, downpayment float64) (float64, float64, float64) {
+	// Calculate asset value by compounding each year's appreciation rate
+	assetValue := purchasePrice
+	years := months / 12
+	remainingMonths := months % 12
 
-	// Calculate asset value with appreciation/depreciation
-	assetValue := purchasePrice * math.Pow(1+(appreciationRate/100), years)
+	// Apply each year's rate
+	for year := 0; year < years; year++ {
+		rateIndex := year
+		if rateIndex >= len(appreciationRates) {
+			rateIndex = len(appreciationRates) - 1 // Use last rate for all future years
+		}
+		assetValue *= (1 + appreciationRates[rateIndex]/100)
+	}
+
+	// Apply partial year if there are remaining months
+	if remainingMonths > 0 {
+		rateIndex := years
+		if rateIndex >= len(appreciationRates) {
+			rateIndex = len(appreciationRates) - 1
+		}
+		partialYearFactor := math.Pow(1+appreciationRates[rateIndex]/100, float64(remainingMonths)/12.0)
+		assetValue *= partialYearFactor
+	}
 
 	// Calculate total expenditure by summing monthly costs from array
 	totalExpenditure := downpayment

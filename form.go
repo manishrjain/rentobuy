@@ -28,13 +28,14 @@ type FormModel struct {
 	submitted    bool
 	values       map[string]string
 	err          error
+	marketData   *MarketData
 }
 
 var (
 	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
 	blurredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))  // White/bright
 	cursorStyle  = focusedStyle.Copy()
-	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))  // Light grey but still readable
+	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))  // Green like title/groups
 	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("34"))
 )
 
@@ -45,7 +46,7 @@ type FieldGroup struct {
 }
 
 // NewFormModel creates a new form with all the input fields organized into groups
-func NewFormModel(defaults map[string]string) FormModel {
+func NewFormModel(defaults map[string]string, md *MarketData) FormModel {
 	// Create field groups
 	groups := []FieldGroup{
 		{
@@ -64,7 +65,7 @@ func NewFormModel(defaults map[string]string) FormModel {
 				makeField("annual_insurance", "Annual Tax & Insurance ($)", "Yearly insurance cost", defaults),
 				makeField("annual_taxes", "Other Annual Costs ($)", "Taxes, HOA fees, etc.", defaults),
 				makeField("monthly_expenses", "Monthly Expenses ($)", "Monthly HOA, utilities, etc.", defaults),
-				makeField("appreciation_rate", "Appreciation Rate (%)", "Annual property value change (e.g., 3 or -2)", defaults),
+				makeField("appreciation_rate", "Appreciation Rate (%)", "Annual rate (can be negative for depreciation). Comma-separated values apply to first years, last value for all remaining years (e.g., '10,5,3' = 10% yr1, 5% yr2, 3% yr3+)", defaults),
 			},
 		},
 		{
@@ -74,7 +75,7 @@ func NewFormModel(defaults map[string]string) FormModel {
 				makeField("monthly_rent", "Monthly Rent ($)", "Base monthly rent amount", defaults),
 				makeField("annual_rent_costs", "Annual Rent Costs ($)", "Yearly rental-related costs", defaults),
 				makeField("other_annual_costs", "Other Annual Costs ($)", "Additional yearly costs for renting", defaults),
-				makeField("investment_return_rate", "Investment Return Rate (%)", "Expected return on investments (e.g., 7)", defaults),
+				makeField("investment_return_rate", "Investment Return Rate (%)", "Expected return on investments. Market averages shown in output", defaults),
 			},
 		},
 		{
@@ -104,6 +105,7 @@ func NewFormModel(defaults map[string]string) FormModel {
 		currentField: 0,
 		submitted:    false,
 		values:       make(map[string]string),
+		marketData:   md,
 	}
 }
 
@@ -264,6 +266,17 @@ func (m FormModel) View() string {
 				b.WriteString(blurredStyle.Render(input))
 			}
 			b.WriteString("\n")
+
+			// Show market averages after investment return rate field
+			if field.Key == "investment_return_rate" && m.marketData != nil && len(m.marketData.SP500) > 0 {
+				sp500Avg, qqqAvg := calculateMarketAverages(m.marketData)
+				if sp500Avg > 0 {
+					marketInfo := fmt.Sprintf("    Market Averages (10y): S&P 500 %.1f%%, QQQ %.1f%%, 60/40 Mix %.1f%%",
+						sp500Avg, qqqAvg, (sp500Avg*0.6 + qqqAvg*0.4))
+					b.WriteString(helpStyle.Render(marketInfo))
+					b.WriteString("\n")
+				}
+			}
 		}
 
 		// Add spacing between groups (except after last group)
@@ -289,8 +302,8 @@ func (m FormModel) View() string {
 }
 
 // RunInteractiveForm runs the interactive form and returns the values
-func RunInteractiveForm(defaults map[string]string) (map[string]string, error) {
-	m := NewFormModel(defaults)
+func RunInteractiveForm(defaults map[string]string, md *MarketData) (map[string]string, error) {
+	m := NewFormModel(defaults, md)
 	p := tea.NewProgram(m)
 
 	finalModel, err := p.Run()
