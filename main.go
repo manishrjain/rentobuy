@@ -628,18 +628,19 @@ func displayInputParameters(inflationRate, purchasePrice, downpayment, loanAmoun
 
 	re := lipgloss.NewRenderer(os.Stdout)
 	titleStyle := re.NewStyle().Foreground(lipgloss.Color("197")).Bold(true) // Monokai pink
+	labelStyle := re.NewStyle().Foreground(lipgloss.Color("81"))             // Monokai blue/cyan
 
 	fmt.Println()
 	fmt.Println(titleStyle.Render("INPUT PARAMETERS"))
 
 	fmt.Println("\nECONOMIC ASSUMPTIONS")
-	fmt.Printf("  Inflation Rate: %.2f%%\n", inflationRate)
+	fmt.Printf("  %s: %.2f%%\n", labelStyle.Render("Inflation Rate"), inflationRate)
 
 	fmt.Println("\nBUYING")
-	fmt.Printf("  Purchase Price: %s\n", formatCurrency(purchasePrice))
-	fmt.Printf("  Downpayment: %s\n", formatCurrency(downpayment))
-	fmt.Printf("  Loan Amount: %s\n", formatCurrency(loanAmount))
-	fmt.Printf("  Loan Rate: %.2f%%\n", annualRate)
+	fmt.Printf("  %s: %s\n", labelStyle.Render("Purchase Price"), formatCurrency(purchasePrice))
+	fmt.Printf("  %s: %s\n", labelStyle.Render("Downpayment"), formatCurrency(downpayment))
+	fmt.Printf("  %s: %s\n", labelStyle.Render("Loan Amount"), formatCurrency(loanAmount))
+	fmt.Printf("  %s: %.2f%%\n", labelStyle.Render("Loan Rate"), annualRate)
 
 	// Format loan duration
 	loanDurationStr := ""
