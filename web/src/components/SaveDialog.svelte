@@ -30,15 +30,18 @@
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       dispatch('close');
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
+      event.stopPropagation();
       if (savedNames.length > 0) {
         selectedIndex = Math.min(selectedIndex + 1, savedNames.length - 1);
         newName = savedNames[selectedIndex];
       }
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
+      event.stopPropagation();
       if (selectedIndex > 0) {
         selectedIndex--;
         newName = savedNames[selectedIndex];
@@ -48,6 +51,7 @@
       }
     } else if (event.key === 'Enter') {
       event.preventDefault();
+      event.stopPropagation();
       handleSave();
     }
   }

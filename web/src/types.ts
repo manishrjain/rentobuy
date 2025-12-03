@@ -58,10 +58,10 @@ export interface ExpenditureRow {
 export interface SaleProceedsRow {
   period: string;
   salePrice: number;
-  sellingCost: number;
+  totalSellingCosts: number;
   loanPayoff: number;
   capitalGains: number;
-  tax: number;
+  taxOnGains: number;
   netProceeds: number;
 }
 
@@ -84,6 +84,16 @@ export interface SellVsKeepRow {
   difference: number;
 }
 
+export interface KeepExpensesRow {
+  period: string;
+  loanPayment: number;
+  taxInsurance: number;
+  otherCosts: number;
+  cumulativeExp: number;
+  investmentVal: number;
+  netPosition: number;
+}
+
 export interface CalculationResults {
   // Common arrays for calculations
   monthlyBuyingCosts: number[];
@@ -104,4 +114,5 @@ export interface CalculationResults {
   saleProceedsTable: SaleProceedsRow[];
   comparisonTable?: ComparisonRow[];
   sellVsKeepTable?: SellVsKeepRow[];
+  keepExpensesTable?: KeepExpensesRow[];
 }

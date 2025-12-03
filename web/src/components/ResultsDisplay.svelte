@@ -1,9 +1,16 @@
 <script lang="ts">
   import type { CalculatorInputs, CalculationResults } from '../types';
-  import { formatCurrency, formatPercent } from '../lib/formatter';
+  import { formatCurrency as formatCurrencyBase, formatPercent } from '../lib/formatter';
 
   export let inputs: CalculatorInputs;
   export let results: CalculationResults;
+
+  let showFullNumbers = false;
+
+  // Reactive formatter that updates when toggle changes
+  $: formatCurrency = (amount: number, forceFullNumbers = false): string => {
+    return formatCurrencyBase(amount, forceFullNumbers || showFullNumbers);
+  };
 
   function formatDuration(months: number): string {
     if (months % 12 === 0) {
@@ -28,7 +35,8 @@
     }).join(', ');
   }
 
-  function formatTaxFreeLimits(limits: number[]): string {
+  // formatTaxFreeLimits needs to be reactive too
+  $: formatTaxFreeLimits = (limits: number[]): string => {
     if (limits.length === 1) {
       return `${formatCurrency(limits[0], true)} (all years)`;
     }
@@ -37,12 +45,24 @@
       const suffix = i === limits.length - 1 ? `year ${year}+` : `year ${year}`;
       return `${formatCurrency(limit, true)} (${suffix})`;
     }).join(', ');
-  }
+  };
 
   $: downpayment = inputs.purchasePrice - inputs.loanAmount;
 </script>
 
 <div class="space-y-8">
+  <!-- Number Format Toggle -->
+  <div class="flex justify-end font-mono">
+    <label class="flex items-center gap-3 cursor-pointer">
+      <span class="text-sm text-light-text-muted dark:text-monokai-text-muted">Compact</span>
+      <div class="toggle-switch">
+        <input type="checkbox" bind:checked={showFullNumbers} />
+        <span class="toggle-slider"></span>
+      </div>
+      <span class="text-sm text-light-text-muted dark:text-monokai-text-muted">Full numbers</span>
+    </label>
+  </div>
+
   <!-- Input Parameters Summary -->
   <section class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg font-mono">
     <h2 class="text-2xl font-bold text-light-pink dark:text-monokai-pink mb-6">
@@ -159,7 +179,7 @@
     {/if}
   </section>
 
-  <!-- Amortization Table (BUY vs RENT only) -->
+  <!-- Amortization Table -->
   {#if results.amortizationTable && inputs.loanAmount > 0}
     <section class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
       <h2 class="section-title">Loan Amortization Details</h2>
@@ -219,6 +239,49 @@
       </div>
       <p class="help-text mt-2">
         Note: All recurring costs (insurance, taxes, rent, HOA, etc.) are inflated annually at {formatPercent(inputs.inflationRate)} rate.
+      </p>
+    </section>
+  {/if}
+
+  <!-- Keep Expenses Breakdown (SELL vs KEEP only) -->
+  {#if results.keepExpensesTable}
+    <section class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
+      <h2 class="section-title">Keep Expenses Breakdown</h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th class="text-right">Loan Payment</th>
+              <th class="text-right">Tax/Insurance</th>
+              <th class="text-right">Other Costs</th>
+              <th class="text-right">Cumulative Exp</th>
+              <th class="text-right">Investment Val</th>
+              <th class="text-right">Net Position</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each results.keepExpensesTable as row}
+              <tr>
+                <td class="font-mono">{row.period}</td>
+                <td class="text-right font-mono">{formatCurrency(row.loanPayment)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.taxInsurance)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.otherCosts)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.cumulativeExp)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.investmentVal)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.netPosition)}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <p class="help-text mt-2">
+        Note: Shows annual expenses for the specific year of each period. 'Loan Payment' = Loan payments for that year (stops after loan term).
+        'Tax/Insurance' = Annual tax & insurance (inflated at {formatPercent(inputs.inflationRate)} annually).
+        'Other Costs' = Other annual costs + monthly expenses (inflated).
+        'Cumulative Exp' = Running total of raw expenses.
+        'Investment Val' = Value of invested income (compounded at {formatPercent(inputs.investmentReturnRate)} return).
+        'Net Position' = Investment value minus real out-of-pocket costs.
       </p>
     </section>
   {/if}

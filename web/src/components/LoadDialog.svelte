@@ -17,22 +17,27 @@
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       dispatch('close');
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
+      event.stopPropagation();
       if (configs.length > 0) {
         selectedIndex = Math.min(selectedIndex + 1, configs.length - 1);
       }
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
+      event.stopPropagation();
       if (selectedIndex > 0) {
         selectedIndex--;
       }
     } else if (event.key === 'Enter') {
       event.preventDefault();
+      event.stopPropagation();
       handleLoad();
     } else if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
+      event.stopPropagation();
       handleDelete();
     }
   }

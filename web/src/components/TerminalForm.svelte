@@ -82,6 +82,11 @@
     : '';
 
   function handleKeyDown(event: KeyboardEvent) {
+    // Ignore if a dialog is open
+    if (document.querySelector('.dialog-overlay')) {
+      return;
+    }
+
     const currentField = visibleFields[currentFieldIndex];
 
     if (event.key === 'ArrowDown') {
@@ -271,6 +276,11 @@
   }
 
   function handleGlobalKeyDown(event: KeyboardEvent) {
+    // Ignore if a dialog is open (check for dialog overlay)
+    if (document.querySelector('.dialog-overlay')) {
+      return;
+    }
+
     // Capture arrow keys globally to prevent page scrolling
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       // If no input is focused, focus the current field

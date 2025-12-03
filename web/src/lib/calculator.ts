@@ -386,6 +386,54 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
     });
   } else {
     // sell_vs_keep scenario
+
+    // Amortization table for sell_vs_keep (if loan exists)
+    if (inputs.loanAmount > 0) {
+      results.amortizationTable = periods.map((period) => {
+        const monthIndex = Math.min(period.months - 1, costs.remainingLoanBalance.length - 1);
+        return {
+          period: 'LOAN ' + period.label,
+          principalPaid: costs.cumulativePrincipalPaid[monthIndex],
+          interestPaid: costs.cumulativeInterestPaid[monthIndex],
+          loanBalance: costs.remainingLoanBalance[monthIndex],
+        };
+      });
+    }
+
+    // Keep Expenses Breakdown table
+    results.keepExpensesTable = periods.map((period) => {
+      const monthIndex = Math.min(period.months - 1, 359);
+      const year = Math.floor(period.months / 12);
+
+      // Calculate annual costs for that specific year
+      const inflationFactor = Math.pow(1 + inputs.inflationRate / 100, year);
+      const taxInsurance = inputs.annualInsurance * inflationFactor;
+      const otherCosts = (inputs.annualTaxes + inputs.monthlyExpenses * 12) * inflationFactor;
+
+      // Loan payment for that year (0 if loan is paid off)
+      const monthlyRate = inputs.loanRate / 100 / 12;
+      const monthlyLoanPayment = inputs.loanAmount > 0
+        ? calculateMonthlyPayment(inputs.loanAmount, monthlyRate, inputs.loanTerm)
+        : 0;
+      const loanPayment = period.months <= inputs.loanTerm ? monthlyLoanPayment * 12 : 0;
+
+      // Cumulative expenses up to this period
+      let cumulativeExp = 0;
+      for (let i = 0; i < period.months; i++) {
+        cumulativeExp += costs.monthlyBuyingCosts[i];
+      }
+
+      return {
+        period: 'KEEP ' + period.label,
+        loanPayment,
+        taxInsurance,
+        otherCosts,
+        cumulativeExp,
+        investmentVal: keepTracking.monthlyKeepInvestmentValue[monthIndex],
+        netPosition: keepTracking.monthlyKeepNetPosition[monthIndex],
+      };
+    });
+
     results.sellVsKeepTable = periods.map((period) => {
       const monthIndex = Math.min(period.months - 1, keepTracking.monthlyKeepNetPosition.length - 1);
       const keepNetPosition = keepTracking.monthlyKeepNetPosition[monthIndex];
