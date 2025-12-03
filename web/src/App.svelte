@@ -5,10 +5,12 @@
   import TerminalForm from './components/TerminalForm.svelte';
   import ResultsDisplay from './components/ResultsDisplay.svelte';
   import ThemeToggle from './components/ThemeToggle.svelte';
+  import ShareButton from './components/ShareButton.svelte';
   import SaveDialog from './components/SaveDialog.svelte';
   import LoadDialog from './components/LoadDialog.svelte';
   import { theme } from './lib/theme';
   import { saveConfig, loadConfig } from './lib/storage';
+  import { encodeInputsToURL, decodeInputsFromURL, clearURLParams, copyToClipboard } from './lib/share';
 
   // String versions for form binding
   let formInputs = {
@@ -43,8 +45,17 @@
   let showResults = false;
   let showSaveDialog = false;
   let showLoadDialog = false;
+  let shareMessage = '';
+  let shareCopied = false;
 
   function handleGlobalKeyDown(event: KeyboardEvent) {
+    // Handle Ctrl+Shift+S to share
+    if (event.ctrlKey && event.shiftKey && event.key === 'S') {
+      event.preventDefault();
+      handleShare();
+      return;
+    }
+
     // Handle Ctrl+S to save
     if (event.ctrlKey && event.key === 's') {
       event.preventDefault();
@@ -76,34 +87,49 @@
     }
   }
 
+  // Helper to normalize boolean values
+  function normalizeBoolean(val: any) {
+    if (typeof val === 'boolean') return val ? 'yes' : 'no';
+    if (val === 'true') return 'yes';
+    if (val === 'false') return 'no';
+    return val;
+  }
+
+  function normalizeInputs(inputs: Record<string, any>) {
+    if (inputs.includeSelling !== undefined) {
+      inputs.includeSelling = normalizeBoolean(inputs.includeSelling);
+    }
+    if (inputs.includeRentingSell !== undefined) {
+      inputs.includeRentingSell = normalizeBoolean(inputs.includeRentingSell);
+    }
+    if (inputs.include30Year !== undefined) {
+      inputs.include30Year = normalizeBoolean(inputs.include30Year);
+    }
+    return inputs;
+  }
+
   onMount(() => {
     // Initialize theme
     theme.initialize();
 
-    // Load saved inputs from localStorage
-    const saved = localStorage.getItem('rentobuy_inputs');
-    if (saved) {
-      try {
-        const loadedInputs = JSON.parse(saved);
-        // Normalize boolean values to 'yes'/'no' strings
-        const normalizeBoolean = (val: any) => {
-          if (typeof val === 'boolean') return val ? 'yes' : 'no';
-          if (val === 'true') return 'yes';
-          if (val === 'false') return 'no';
-          return val;
-        };
-        if (loadedInputs.includeSelling !== undefined) {
-          loadedInputs.includeSelling = normalizeBoolean(loadedInputs.includeSelling);
+    // Check for shared URL params first (takes priority)
+    const urlInputs = decodeInputsFromURL();
+    if (urlInputs) {
+      normalizeInputs(urlInputs);
+      formInputs = { ...formInputs, ...urlInputs };
+      // Clear URL params after loading
+      clearURLParams();
+    } else {
+      // Load saved inputs from localStorage
+      const saved = localStorage.getItem('rentobuy_inputs');
+      if (saved) {
+        try {
+          const loadedInputs = JSON.parse(saved);
+          normalizeInputs(loadedInputs);
+          formInputs = { ...formInputs, ...loadedInputs };
+        } catch (e) {
+          console.error('Failed to load saved inputs:', e);
         }
-        if (loadedInputs.includeRentingSell !== undefined) {
-          loadedInputs.includeRentingSell = normalizeBoolean(loadedInputs.includeRentingSell);
-        }
-        if (loadedInputs.include30Year !== undefined) {
-          loadedInputs.include30Year = normalizeBoolean(loadedInputs.include30Year);
-        }
-        formInputs = { ...formInputs, ...loadedInputs };
-      } catch (e) {
-        console.error('Failed to load saved inputs:', e);
       }
     }
 
@@ -160,24 +186,25 @@
 
   function handleLoad(event: CustomEvent<{ name: string; data: Record<string, any> }>) {
     const { data } = event.detail;
-    // Normalize boolean values
-    const normalizeBoolean = (val: any) => {
-      if (typeof val === 'boolean') return val ? 'yes' : 'no';
-      if (val === 'true') return 'yes';
-      if (val === 'false') return 'no';
-      return val;
-    };
-    if (data.includeSelling !== undefined) {
-      data.includeSelling = normalizeBoolean(data.includeSelling);
-    }
-    if (data.includeRentingSell !== undefined) {
-      data.includeRentingSell = normalizeBoolean(data.includeRentingSell);
-    }
-    if (data.include30Year !== undefined) {
-      data.include30Year = normalizeBoolean(data.include30Year);
-    }
+    normalizeInputs(data);
     formInputs = { ...formInputs, ...data };
     showLoadDialog = false;
+  }
+
+  async function handleShare() {
+    const url = encodeInputsToURL(formInputs);
+    const success = await copyToClipboard(url);
+    if (success) {
+      shareMessage = 'Link copied to clipboard!';
+      shareCopied = true;
+    } else {
+      shareMessage = 'Failed to copy. URL: ' + url;
+    }
+    // Clear message after 3 seconds
+    setTimeout(() => {
+      shareMessage = '';
+      shareCopied = false;
+    }, 3000);
   }
 </script>
 
@@ -190,7 +217,10 @@
             <span class="text-light-pink dark:text-monokai-pink">$</span>
             <span class="text-light-text dark:text-monokai-text">./calculator</span>
           </div>
-          <ThemeToggle />
+          <div class="flex items-center gap-2">
+            <ShareButton copied={shareCopied} on:share={handleShare} />
+            <ThemeToggle />
+          </div>
         </div>
         <h1 class="text-2xl font-bold text-light-orange dark:text-monokai-orange font-mono">
           BRSK Calculator: Buy v Rent / Sell v Keep
@@ -200,6 +230,12 @@
         </div>
       </div>
     </header>
+
+    {#if shareMessage}
+      <div class="share-message font-mono text-sm text-light-green dark:text-monokai-green bg-light-bg-light dark:bg-monokai-bg-light border border-light-border dark:border-monokai-border rounded px-4 py-2 mb-4">
+        {shareMessage}
+      </div>
+    {/if}
 
     {#if !showResults}
       <TerminalForm bind:formInputs on:calculate={handleCalculate} />

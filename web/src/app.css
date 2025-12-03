@@ -11,6 +11,7 @@
     @apply bg-light-bg text-light-text dark:bg-black dark:text-monokai-text;
     font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', 'Courier New', monospace;
     font-feature-settings: "liga" 1, "calt" 1;
+    font-weight: 600;
   }
 
   ::selection {

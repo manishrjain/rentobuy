@@ -344,7 +344,7 @@
   <div class="help-section">
     <div class="help-header">
       <div class="help-nav">
-        <span class="text-light-cyan dark:text-monokai-cyan">↑↓</span> arrows to move | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+Enter</span> <button type="button" on:click={handleSubmit} class="calculate-link">calculate</button> | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+S</span> save | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+O</span> load
+        <span class="text-light-cyan dark:text-monokai-cyan">↑↓</span> move | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+Enter</span> <button type="button" on:click={handleSubmit} class="calculate-link">calculate</button> | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+S</span> save | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+O</span> load | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+Shift+S</span> share
       </div>
       <div class="help-field-counter">
         Field <span class="text-light-pink dark:text-monokai-pink">{currentFieldIndex + 1}</span>/<span class="text-light-cyan dark:text-monokai-cyan">{visibleFields.length}</span>
