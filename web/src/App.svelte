@@ -223,7 +223,7 @@
           </div>
         </div>
         <h1 class="text-2xl font-bold text-light-orange dark:text-monokai-orange font-mono">
-          BRSK Calculator: Buy v Rent / Sell v Keep
+          BRiSK Calculator: Buy v Rent / Sell v Keep
         </h1>
         <div class="mt-2 text-xs text-light-text-muted dark:text-monokai-text-muted">
           Make a calculated decision
