@@ -35,7 +35,7 @@
 
       { key: 'header_economic', label: '', help: '', placeholder: '', visible: () => true, isHeader: true, headerText: 'ECONOMIC ASSUMPTIONS' },
       { key: 'inflationRate', label: 'Inflation Rate (%)', help: 'Annual inflation for all recurring costs', placeholder: '3', visible: () => true, fieldType: 'rate' },
-      { key: 'investmentReturnRate', label: 'Investment Return (%)', help: 'Expected return on investments. Market averages shown below', placeholder: '10', visible: () => true, fieldType: 'rate' },
+      { key: 'investmentReturnRate', label: 'Investment Return (%)', help: 'Expected return on investments. Market averages shown above', placeholder: '10', visible: () => true, fieldType: 'rate' },
       { key: 'include30Year', label: '30-Year Projections', help: 'Toggle to show 15y, 20y, 30y periods (default: 10y max)', placeholder: 'no', visible: () => true, toggleValues: ['yes', 'no'], fieldType: 'toggle' },
 
       { key: 'header_asset', label: '', help: '', placeholder: '', visible: () => true, isHeader: true, headerText: formInputs.scenario === 'sell_vs_keep' ? 'ASSET' : 'BUYING' },
@@ -77,7 +77,7 @@
   $: currentHelpText = visibleFields[currentFieldIndex]?.help || '';
   $: currentFieldType = visibleFields[currentFieldIndex]?.fieldType;
   $: fieldTypeHint = currentFieldType === 'currency'
-    ? 'use k for thousand, m for million (e.g., 500k, 2.5m)'
+    ? 'use k for thousand, m for million (e.g., 5k, 2.5m)'
     : currentFieldType === 'duration'
     ? 'use y for years, m for months (e.g., 29y6m)'
     : currentFieldType === 'toggle'
@@ -356,19 +356,16 @@
             </div>
             <div class="field-input flex-1 min-w-0 ml-6 md:ml-0">
               {#if field.fieldType === 'toggle'}
-                <input
-                  type="text"
-                  bind:value={formInputs[field.key]}
+                <button
+                  type="button"
                   bind:this={inputRefs[index]}
                   on:keydown={handleKeyDown}
                   on:focus={() => handleFieldFocus(index)}
                   on:blur={() => validateAndResetField(field)}
                   on:click={() => handleToggleClick(field)}
-                  placeholder={field.placeholder}
-                  class="terminal-input terminal-input-toggle w-full"
+                  class="terminal-input terminal-input-toggle w-full text-left"
                   disabled={field.disabled && field.disabled()}
-                  readonly
-                />
+                >{formInputs[field.key] || field.placeholder}</button>
               {:else}
                 <input
                   type="text"
@@ -384,15 +381,15 @@
               {/if}
             </div>
           </div>
-          <!-- Inline help text for mobile -->
-          <div class="field-help-mobile">
-            <span class="text-light-green dark:text-monokai-green">{field.help}</span>
+          <!-- Inline help text -->
+          <div class="field-help-inline" class:focused={index === currentFieldIndex}>
+            <span>{field.help}</span>
             {#if field.fieldType === 'currency'}
-              <span class="text-light-text-muted dark:text-monokai-text-muted"> | use k for thousand, m for million (e.g., 500k, 2.5m)</span>
+              <span> | use k for thousand, m for million (e.g., 5k, 2.5m)</span>
             {:else if field.fieldType === 'duration'}
-              <span class="text-light-text-muted dark:text-monokai-text-muted"> | use y for years, m for months (e.g., 29y6m)</span>
+              <span> | use y for years, m for months (e.g., 29y6m)</span>
             {:else if field.fieldType === 'toggle'}
-              <span class="text-light-text-muted dark:text-monokai-text-muted"> | tap to toggle</span>
+              <span> | tap to toggle</span>
             {/if}
           </div>
         </div>
@@ -402,17 +399,14 @@
     </form>
   </div>
 
-  <!-- Help Text Section - Desktop -->
+  <!-- Keyboard shortcuts - Desktop -->
   <div class="help-section">
-    <div class="help-header">
-      <div class="help-nav">
-        <span class="text-light-cyan dark:text-monokai-cyan">↑↓</span> move | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+Enter</span> <button type="button" on:click={handleSubmit} class="calculate-link">calculate</button> | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+S</span> save | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+O</span> load | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+Shift+S</span> share
-      </div>
-      <div class="help-field-counter">
-        Field <span class="text-light-pink dark:text-monokai-pink">{currentFieldIndex + 1}</span>/<span class="text-light-cyan dark:text-monokai-cyan">{visibleFields.length}</span>
-      </div>
+    <div class="help-nav">
+      <span class="text-light-cyan dark:text-monokai-cyan">↑↓</span> move | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+Enter</span> <button type="button" on:click={handleSubmit} class="calculate-link">calculate</button> | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+S</span> save | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+O</span> load | <span class="text-light-cyan dark:text-monokai-cyan">Ctrl+Shift+S</span> share
+      <span class="help-field-counter">
+        | Field <span class="text-light-pink dark:text-monokai-pink">{currentFieldIndex + 1}</span>/<span class="text-light-cyan dark:text-monokai-cyan">{visibleFields.length}</span>
+      </span>
     </div>
-    <div class="help-content">{currentHelpText || 'Navigate through fields using arrow keys'}{#if fieldTypeHint}<span class="text-light-text-muted dark:text-monokai-text-muted"> &nbsp;| {fieldTypeHint}</span>{/if}</div>
   </div>
 </div>
 
@@ -555,6 +549,8 @@
     -moz-user-select: none;
     -ms-user-select: none;
     caret-color: transparent;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
   }
 
   .terminal-input-toggle:focus {
@@ -588,22 +584,25 @@
     }
   }
 
-  .field-help-mobile {
-    display: block;
+  .field-help-inline {
+    display: none;
     margin-top: 0.25rem;
     margin-left: 1.5rem;
     padding: 0.25rem 0.5rem;
     font-size: 11px;
     line-height: 1.4;
-    @apply bg-light-bg-light dark:bg-[#0a0a0a];
-    border-left: 2px solid;
-    @apply border-light-green dark:border-monokai-green;
-    border-radius: 0 0.25rem 0.25rem 0;
+    font-weight: 600;
+    @apply text-light-text-muted dark:text-monokai-text-muted;
+  }
+
+  .field-help-inline.focused {
+    display: block;
   }
 
   @media (min-width: 768px) {
-    .field-help-mobile {
-      display: none;
+    .field-help-inline {
+      margin-left: 2.25rem;
+      font-size: 0.75rem;
     }
   }
 
@@ -623,50 +622,15 @@
     }
   }
 
-  .help-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.375rem;
-    padding-bottom: 0.25rem;
-    @apply border-b border-light-border dark:border-monokai-border;
-  }
-
   .help-nav {
     @apply text-light-text dark:text-monokai-text;
-    font-size: 11px;
+    font-size: 0.8125rem;
     font-weight: 600;
-    flex: 1;
-    min-width: 0;
     line-height: 1.3;
-  }
-
-  @media (min-width: 768px) {
-    .help-nav {
-      font-size: 0.8125rem;
-    }
   }
 
   .help-field-counter {
     @apply text-light-text-muted dark:text-monokai-text-muted;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  @media (min-width: 768px) {
-    .help-field-counter {
-      font-size: 0.8125rem;
-    }
-  }
-
-  .help-content {
-    @apply text-light-green dark:text-monokai-green;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    line-height: 1.4;
-    word-break: break-word;
-    overflow-wrap: break-word;
     max-width: 100%;
   }
 

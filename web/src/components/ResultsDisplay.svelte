@@ -5,8 +5,7 @@
 
   export let inputs: CalculatorInputs;
   export let results: CalculationResults;
-
-  let showFullNumbers = false;
+  export let showFullNumbers = false;
 
   // Reactive formatter that updates when toggle changes
   $: formatCurrency = (amount: number, forceFullNumbers = false): string => {
@@ -52,18 +51,6 @@
 </script>
 
 <div class="space-y-8">
-  <!-- Number Format Toggle -->
-  <div class="flex justify-end font-mono">
-    <label class="flex items-center gap-3 cursor-pointer">
-      <span class="text-sm text-light-text-muted dark:text-monokai-text-muted">Compact</span>
-      <div class="toggle-switch">
-        <input type="checkbox" bind:checked={showFullNumbers} />
-        <span class="toggle-slider"></span>
-      </div>
-      <span class="text-sm text-light-text-muted dark:text-monokai-text-muted">Full numbers</span>
-    </label>
-  </div>
-
   <!-- Input Parameters Summary -->
   <section class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg font-mono">
     <h2 class="text-2xl font-bold text-light-pink dark:text-monokai-pink mb-6">

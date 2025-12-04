@@ -5,6 +5,7 @@
   import TerminalForm from './components/TerminalForm.svelte';
   import ResultsDisplay from './components/ResultsDisplay.svelte';
   import ThemeToggle from './components/ThemeToggle.svelte';
+  import NumberFormatToggle from './components/NumberFormatToggle.svelte';
   import ShareButton from './components/ShareButton.svelte';
   import SaveDialog from './components/SaveDialog.svelte';
   import LoadDialog from './components/LoadDialog.svelte';
@@ -47,6 +48,7 @@
   let showLoadDialog = false;
   let shareMessage = '';
   let shareCopied = false;
+  let showFullNumbers = false;
 
   function handleGlobalKeyDown(event: KeyboardEvent) {
     // Handle Ctrl+Shift+S to share
@@ -213,11 +215,21 @@
     <header class="mb-4 md:mb-8">
       <div class="border-2 border-light-border dark:border-monokai-border rounded-lg p-2 md:p-4 bg-light-bg dark:bg-black">
         <div class="flex items-center justify-between mb-1 md:mb-2">
-          <div class="flex items-center gap-1 md:gap-2 text-xs font-mono">
-            <span class="text-light-pink dark:text-monokai-pink">$</span>
-            <span class="text-light-text dark:text-monokai-text">./calculator</span>
-          </div>
+          {#if showResults}
+            <button class="flex items-center gap-1 md:gap-2 text-xs font-mono hover:opacity-70 transition-opacity" on:click={handleReset}>
+              <span class="text-light-pink dark:text-monokai-pink">$</span>
+              <span class="text-light-cyan dark:text-monokai-cyan">../calculator</span>
+            </button>
+          {:else}
+            <div class="flex items-center gap-1 md:gap-2 text-xs font-mono">
+              <span class="text-light-pink dark:text-monokai-pink">$</span>
+              <span class="text-light-text dark:text-monokai-text">./calculator</span>
+            </div>
+          {/if}
           <div class="flex items-center gap-1 md:gap-2">
+            {#if showResults}
+              <NumberFormatToggle {showFullNumbers} on:toggle={() => showFullNumbers = !showFullNumbers} />
+            {/if}
             <ShareButton copied={shareCopied} on:share={handleShare} />
             <ThemeToggle />
           </div>
@@ -239,15 +251,8 @@
 
     {#if !showResults}
       <TerminalForm bind:formInputs on:calculate={handleCalculate} />
-    {:else}
-      <div class="mb-6">
-        <button class="terminal-back-button font-mono" on:click={handleReset}>
-          <span class="text-light-pink dark:text-monokai-pink">$</span> cd .. && ./calculator
-        </button>
-      </div>
-      {#if results && calculatedInputs}
-        <ResultsDisplay inputs={calculatedInputs} {results} />
-      {/if}
+    {:else if results && calculatedInputs}
+      <ResultsDisplay inputs={calculatedInputs} {results} {showFullNumbers} />
     {/if}
   </div>
 </main>
