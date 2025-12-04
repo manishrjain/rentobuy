@@ -14,6 +14,7 @@ export function calculateMonthlyPayment(
 
 export function getPeriods(loanDuration: number, include30Year: boolean): Period[] {
   const basePeriods: Period[] = [
+    { label: '  0y', months: 0 },
     { label: '  1y', months: 12 },
     { label: '  2y', months: 24 },
     { label: '  3y', months: 36 },
@@ -257,7 +258,8 @@ export function calculateAssetValue(
 export function calculateSaleProceeds(
   inputs: CalculatorInputs,
   months: number,
-  remainingLoanBalance: number[]
+  remainingLoanBalance: number[],
+  effectiveLoanAmount?: number
 ): {
   salePrice: number;
   totalSellingCosts: number;
@@ -269,15 +271,28 @@ export function calculateSaleProceeds(
   const startingPrice = inputs.currentMarketValue || inputs.purchasePrice;
   const salePrice = calculateAssetValue(startingPrice, months, inputs.appreciationRate);
 
+  const years = Math.floor(months / 12);
+  const inflatedStagingCosts = inputs.stagingCosts * Math.pow(1 + inputs.inflationRate / 100, years);
   const agentFee = salePrice * (inputs.agentCommission / 100);
-  const totalSellingCosts = agentFee + inputs.stagingCosts;
+  const totalSellingCosts = agentFee + inflatedStagingCosts;
 
-  const monthIndex = Math.min(months - 1, remainingLoanBalance.length - 1);
-  const loanPayoff = remainingLoanBalance[monthIndex];
+  let loanPayoff: number;
+  if (months === 0 && effectiveLoanAmount !== undefined) {
+    // At month 0, use the effective loan amount directly
+    loanPayoff = effectiveLoanAmount;
+  } else if (months === 0) {
+    // Fallback: estimate from first month's balance
+    const firstMonthBalance = remainingLoanBalance[0];
+    const secondMonthBalance = remainingLoanBalance[1];
+    const firstPrincipalPayment = firstMonthBalance - secondMonthBalance;
+    loanPayoff = firstMonthBalance + firstPrincipalPayment;
+  } else {
+    const monthIndex = Math.min(months - 1, remainingLoanBalance.length - 1);
+    loanPayoff = remainingLoanBalance[monthIndex];
+  }
 
   const capitalGains = salePrice - inputs.purchasePrice - totalSellingCosts;
 
-  const years = Math.floor(months / 12);
   const taxFreeLimitIndex = Math.max(0, Math.min(years - 1, inputs.taxFreeLimits.length - 1));
   const taxFreeLimit = inputs.taxFreeLimits[taxFreeLimitIndex] || 0;
 
@@ -318,7 +333,7 @@ export function calculateRentingNetWorth(
 
 export function calculate(inputs: CalculatorInputs): CalculationResults {
   const costs = populateMonthlyCosts(inputs);
-  const { effectiveLoanTerm } = getEffectiveLoanValues(inputs);
+  const { effectiveLoanTerm, effectiveLoanAmount } = getEffectiveLoanValues(inputs);
   const periods = getPeriods(effectiveLoanTerm, inputs.include30Year);
 
   const keepTracking = calculateKeepInvestmentTracking(
@@ -329,7 +344,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
 
   // Calculate sale proceeds for all periods
   const saleProceedsTable = periods.map((period) => {
-    const proceeds = calculateSaleProceeds(inputs, period.months, costs.remainingLoanBalance);
+    const proceeds = calculateSaleProceeds(inputs, period.months, costs.remainingLoanBalance, effectiveLoanAmount);
     return {
       period: 'SALE ' + period.label,
       ...proceeds,
@@ -347,7 +362,16 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
   if (inputs.scenario === 'buy_vs_rent') {
     // Amortization table
     if (inputs.loanAmount > 0) {
+      const loanValues = getEffectiveLoanValues(inputs);
       results.amortizationTable = periods.map((period) => {
+        if (period.months === 0) {
+          return {
+            period: 'LOAN ' + period.label,
+            principalPaid: 0,
+            interestPaid: 0,
+            loanBalance: loanValues.effectiveLoanAmount,
+          };
+        }
         const monthIndex = Math.min(period.months - 1, costs.remainingLoanBalance.length - 1);
         return {
           period: 'LOAN ' + period.label,
@@ -378,6 +402,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
     });
 
     // Comparison table
+    const loanValuesForComparison = getEffectiveLoanValues(inputs);
     results.comparisonTable = periods.map((period) => {
       const assetValue = calculateAssetValue(
         inputs.purchasePrice,
@@ -386,15 +411,17 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
       );
 
       const downpayment = inputs.purchasePrice - inputs.loanAmount;
-      const monthIndex = Math.min(period.months - 1, costs.remainingLoanBalance.length - 1);
-      const loanBalance = costs.remainingLoanBalance[monthIndex];
+      const loanBalance = period.months === 0
+        ? loanValuesForComparison.effectiveLoanAmount
+        : costs.remainingLoanBalance[Math.min(period.months - 1, costs.remainingLoanBalance.length - 1)];
 
       let buyingNetWorth: number;
       if (inputs.includeSelling) {
         const { netProceeds } = calculateSaleProceeds(
           inputs,
           period.months,
-          costs.remainingLoanBalance
+          costs.remainingLoanBalance,
+          effectiveLoanAmount
         );
         buyingNetWorth = netProceeds;
       } else {
@@ -429,9 +456,20 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
   } else {
     // sell_vs_keep scenario
 
+    // Keep Expenses Breakdown table
+    const loanValues = getEffectiveLoanValues(inputs);
+
     // Amortization table for sell_vs_keep (if loan exists)
     if (inputs.loanAmount > 0) {
       results.amortizationTable = periods.map((period) => {
+        if (period.months === 0) {
+          return {
+            period: 'LOAN ' + period.label,
+            principalPaid: 0,
+            interestPaid: 0,
+            loanBalance: loanValues.effectiveLoanAmount,
+          };
+        }
         const monthIndex = Math.min(period.months - 1, costs.remainingLoanBalance.length - 1);
         return {
           period: 'LOAN ' + period.label,
@@ -442,10 +480,19 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
       });
     }
 
-    // Keep Expenses Breakdown table
-    const loanValues = getEffectiveLoanValues(inputs);
-
     results.keepExpensesTable = periods.map((period) => {
+      if (period.months === 0) {
+        return {
+          period: 'KEEP ' + period.label,
+          loanPayment: loanValues.monthlyLoanPayment * 12,
+          taxInsurance: inputs.annualInsurance,
+          otherCosts: inputs.annualTaxes + inputs.monthlyExpenses * 12,
+          cumulativeExp: 0,
+          investmentVal: 0,
+          netPosition: 0,
+        };
+      }
+
       const monthIndex = Math.min(period.months - 1, 359);
       const year = Math.floor(period.months / 12);
 
@@ -475,13 +522,15 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
     });
 
     results.sellVsKeepTable = periods.map((period) => {
-      const monthIndex = Math.min(period.months - 1, keepTracking.monthlyKeepNetPosition.length - 1);
-      const keepNetPosition = keepTracking.monthlyKeepNetPosition[monthIndex];
+      const keepNetPosition = period.months === 0
+        ? 0
+        : keepTracking.monthlyKeepNetPosition[Math.min(period.months - 1, keepTracking.monthlyKeepNetPosition.length - 1)];
 
       const { netProceeds } = calculateSaleProceeds(
         inputs,
         period.months,
-        costs.remainingLoanBalance
+        costs.remainingLoanBalance,
+        effectiveLoanAmount
       );
       const keepNetWorth = netProceeds + keepNetPosition;
 
