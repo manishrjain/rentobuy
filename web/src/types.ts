@@ -12,14 +12,19 @@ export interface CalculatorInputs {
   // Buying/Asset
   purchasePrice: number;
   currentMarketValue?: number; // Only for sell_vs_keep
-  loanAmount: number;
-  loanRate: number;
-  loanTerm: number; // in months
-  remainingLoanTerm?: number; // Only for sell_vs_keep, in months
   annualInsurance: number;
   annualTaxes: number;
   annualIncome: number; // Annual income from asset (e.g., rental income)
   appreciationRate: number[]; // Array for different years
+
+  // Loan
+  loanAmount: number;
+  loanRate: number;
+  loanTerm: number; // in months
+  remainingLoanTerm?: number; // Only for sell_vs_keep, in months
+  includeRefinance?: boolean; // Only for sell_vs_keep
+  payoffBalance?: number; // Only for sell_vs_keep with refinance
+  closingCosts?: number; // Only for sell_vs_keep with refinance
 
   // Renting
   rentDeposit: number;
@@ -50,6 +55,8 @@ export interface AmortizationRow {
 
 export interface ExpenditureRow {
   period: string;
+  loanPayment: number;
+  costs: number;
   buyingExpenditure: number;
   rentingExpenditure: number;
   difference: number;
@@ -92,6 +99,7 @@ export interface KeepExpensesRow {
   otherCosts: number;
   cumulativeExp: number;
   investmentVal: number;
+  investmentReturns: number;
   netPosition: number;
 }
 
@@ -107,6 +115,7 @@ export interface CalculationResults {
   monthlyKeepInvestmentValue: number[];
   monthlyKeepRealCosts: number[];
   monthlyKeepNetPosition: number[];
+  monthlyKeepInvestmentReturns: number[];
 
   // Table data
   periods: Period[];

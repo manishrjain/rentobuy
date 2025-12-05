@@ -78,12 +78,29 @@ export function getEffectiveLoanValues(inputs: CalculatorInputs): {
   effectiveLoanAmount: number;
   effectiveLoanTerm: number;
   monthlyLoanPayment: number;
+  refinanceCashOut: number;
 } {
   if (inputs.loanAmount <= 0) {
-    return { effectiveLoanAmount: 0, effectiveLoanTerm: 0, monthlyLoanPayment: 0 };
+    return { effectiveLoanAmount: 0, effectiveLoanTerm: 0, monthlyLoanPayment: 0, refinanceCashOut: 0 };
   }
 
   const monthlyRate = inputs.loanRate / 100 / 12;
+
+  // If refinance is enabled, use refinance values directly
+  if (inputs.includeRefinance) {
+    const payment = calculateMonthlyPayment(inputs.loanAmount, monthlyRate, inputs.loanTerm);
+    const payoffBalance = inputs.payoffBalance ?? 0;
+    const closingCosts = inputs.closingCosts ?? 0;
+    const refinanceCashOut = inputs.loanAmount - payoffBalance - closingCosts;
+
+    return {
+      effectiveLoanAmount: inputs.loanAmount,
+      effectiveLoanTerm: inputs.loanTerm,
+      monthlyLoanPayment: payment,
+      refinanceCashOut,
+    };
+  }
+
   const remainingTerm = inputs.remainingLoanTerm ?? inputs.loanTerm;
 
   // If no elapsed time, use original values
@@ -93,6 +110,7 @@ export function getEffectiveLoanValues(inputs: CalculatorInputs): {
       effectiveLoanAmount: inputs.loanAmount,
       effectiveLoanTerm: inputs.loanTerm,
       monthlyLoanPayment: payment,
+      refinanceCashOut: 0,
     };
   }
 
@@ -114,6 +132,7 @@ export function getEffectiveLoanValues(inputs: CalculatorInputs): {
     effectiveLoanAmount: balance,
     effectiveLoanTerm: remainingTerm,
     monthlyLoanPayment: newPayment,
+    refinanceCashOut: 0,
   };
 }
 
@@ -186,18 +205,22 @@ export function populateMonthlyCosts(inputs: CalculatorInputs): {
 export function calculateKeepInvestmentTracking(
   monthlyBuyingCosts: number[],
   investmentReturnRate: number,
-  maxMonths: number
+  maxMonths: number,
+  initialCashOut: number = 0
 ): {
   monthlyKeepInvestmentValue: number[];
   monthlyKeepRealCosts: number[];
   monthlyKeepNetPosition: number[];
+  monthlyKeepInvestmentReturns: number[];
 } {
   const monthlyKeepInvestmentValue: number[] = new Array(maxMonths);
   const monthlyKeepRealCosts: number[] = new Array(maxMonths);
   const monthlyKeepNetPosition: number[] = new Array(maxMonths);
+  const monthlyKeepInvestmentReturns: number[] = new Array(maxMonths);
 
-  let investmentValue = 0;
+  let investmentValue = initialCashOut;
   let totalRealCosts = 0;
+  let totalReturns = 0;
   const monthlyInvestmentRate = investmentReturnRate / 100 / 12;
 
   for (let i = 0; i < maxMonths; i++) {
@@ -215,17 +238,21 @@ export function calculateKeepInvestmentTracking(
       }
     }
 
+    const monthlyReturn = investmentValue * monthlyInvestmentRate;
+    totalReturns += monthlyReturn;
     investmentValue *= 1 + monthlyInvestmentRate;
 
     monthlyKeepInvestmentValue[i] = investmentValue;
     monthlyKeepRealCosts[i] = totalRealCosts;
     monthlyKeepNetPosition[i] = investmentValue - totalRealCosts;
+    monthlyKeepInvestmentReturns[i] = totalReturns;
   }
 
   return {
     monthlyKeepInvestmentValue,
     monthlyKeepRealCosts,
     monthlyKeepNetPosition,
+    monthlyKeepInvestmentReturns,
   };
 }
 
@@ -346,13 +373,14 @@ export function calculateRentingNetWorth(
 
 export function calculate(inputs: CalculatorInputs): CalculationResults {
   const costs = populateMonthlyCosts(inputs);
-  const { effectiveLoanTerm, effectiveLoanAmount } = getEffectiveLoanValues(inputs);
+  const { effectiveLoanTerm, effectiveLoanAmount, refinanceCashOut } = getEffectiveLoanValues(inputs);
   const periods = getPeriods(effectiveLoanTerm, inputs.include30Year);
 
   const keepTracking = calculateKeepInvestmentTracking(
     costs.monthlyBuyingCosts,
     inputs.investmentReturnRate,
-    360
+    360,
+    refinanceCashOut
   );
 
   // Calculate sale proceeds for all periods
@@ -398,6 +426,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
     }
 
     // Expenditure table
+    const loanValues = getEffectiveLoanValues(inputs);
     results.expenditureTable = periods.map((period) => {
       const downpayment = inputs.purchasePrice - inputs.loanAmount;
       let buyingExpenditure = downpayment;
@@ -408,8 +437,16 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
         rentingExpenditure += costs.monthlyRentingCosts[i];
       }
 
+      // Calculate annual loan payment and costs for that year
+      const year = Math.floor(period.months / 12);
+      const inflationFactor = Math.pow(1 + inputs.inflationRate / 100, year);
+      const annualCosts = (inputs.annualInsurance + inputs.annualTaxes - inputs.annualIncome) * inflationFactor;
+      const loanPayment = period.months <= loanValues.effectiveLoanTerm ? loanValues.monthlyLoanPayment * 12 : 0;
+
       return {
         period: 'EXP ' + period.label,
+        loanPayment,
+        costs: annualCosts,
         buyingExpenditure,
         rentingExpenditure,
         difference: buyingExpenditure - rentingExpenditure,
@@ -503,8 +540,9 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
           taxInsurance: inputs.annualInsurance,
           otherCosts: inputs.annualTaxes - inputs.annualIncome,
           cumulativeExp: 0,
-          investmentVal: 0,
-          netPosition: 0,
+          investmentVal: refinanceCashOut,
+          investmentReturns: 0,
+          netPosition: refinanceCashOut,
         };
       }
 
@@ -532,6 +570,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
         otherCosts,
         cumulativeExp,
         investmentVal: keepTracking.monthlyKeepInvestmentValue[monthIndex],
+        investmentReturns: keepTracking.monthlyKeepInvestmentReturns[monthIndex],
         netPosition: keepTracking.monthlyKeepNetPosition[monthIndex],
       };
     });
