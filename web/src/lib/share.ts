@@ -12,7 +12,7 @@ const KEY_MAP: Record<string, string> = {
   remainingLoanTerm: 'rlt',
   annualInsurance: 'ai',
   annualTaxes: 'at',
-  monthlyExpenses: 'me',
+  annualIncome: 'ain',
   appreciationRate: 'ar',
   rentDeposit: 'rd',
   monthlyRent: 'mr',

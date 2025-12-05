@@ -18,7 +18,7 @@ export interface CalculatorInputs {
   remainingLoanTerm?: number; // Only for sell_vs_keep, in months
   annualInsurance: number;
   annualTaxes: number;
-  monthlyExpenses: number;
+  annualIncome: number; // Annual income from asset (e.g., rental income)
   appreciationRate: number[]; // Array for different years
 
   // Renting

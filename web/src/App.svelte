@@ -29,7 +29,7 @@
     remainingLoanTerm: '',
     annualInsurance: '3K',
     annualTaxes: '5K',
-    monthlyExpenses: '500',
+    annualIncome: '0',
     appreciationRate: '3',
     rentDeposit: '5K',
     monthlyRent: '3K',
@@ -295,7 +295,7 @@
     {/if}
 
     {#if !showResults}
-      <TerminalForm bind:formInputs on:calculate={handleCalculate} />
+      <TerminalForm bind:formInputs on:calculate={handleCalculate} on:save={() => showSaveDialog = true} on:load={() => showLoadDialog = true} />
     {:else if results && calculatedInputs}
       <ResultsDisplay inputs={calculatedInputs} {results} {showFullNumbers} />
     {/if}

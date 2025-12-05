@@ -132,7 +132,7 @@ export function populateMonthlyCosts(inputs: CalculatorInputs): {
   const cumulativeInterestPaid: number[] = new Array(maxMonths);
 
   const totalAnnualExpenses = inputs.annualInsurance + inputs.annualTaxes;
-  let monthlyRecurringExpenses = totalAnnualExpenses / 12 + inputs.monthlyExpenses;
+  let monthlyRecurringExpenses = totalAnnualExpenses / 12 - inputs.annualIncome / 12;
 
   const monthlyRate = inputs.loanRate / 100 / 12;
   const { effectiveLoanAmount, effectiveLoanTerm, monthlyLoanPayment } = getEffectiveLoanValues(inputs);
@@ -501,7 +501,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
           period: 'KEEP ' + period.label,
           loanPayment: loanValues.monthlyLoanPayment * 12,
           taxInsurance: inputs.annualInsurance,
-          otherCosts: inputs.annualTaxes + inputs.monthlyExpenses * 12,
+          otherCosts: inputs.annualTaxes - inputs.annualIncome,
           cumulativeExp: 0,
           investmentVal: 0,
           netPosition: 0,
@@ -514,7 +514,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
       // Calculate annual costs for that specific year
       const inflationFactor = Math.pow(1 + inputs.inflationRate / 100, year);
       const taxInsurance = inputs.annualInsurance * inflationFactor;
-      const otherCosts = (inputs.annualTaxes + inputs.monthlyExpenses * 12) * inflationFactor;
+      const otherCosts = (inputs.annualTaxes - inputs.annualIncome) * inflationFactor;
 
       // Loan payment for that year (0 if loan is paid off)
       const loanPayment = period.months <= loanValues.effectiveLoanTerm ? loanValues.monthlyLoanPayment * 12 : 0;

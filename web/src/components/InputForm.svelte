@@ -21,7 +21,7 @@
       remainingLoanTerm: formInputs.remainingLoanTerm ? parseDuration(formInputs.remainingLoanTerm) : undefined,
       annualInsurance: parseAmount(formInputs.annualInsurance.toString()),
       annualTaxes: parseAmount(formInputs.annualTaxes.toString()),
-      monthlyExpenses: parseAmount(formInputs.monthlyExpenses.toString()),
+      annualIncome: parseAmount(formInputs.annualIncome.toString()),
       appreciationRate: parseAppreciationRates(formInputs.appreciationRate),
       rentDeposit: parseAmount(formInputs.rentDeposit.toString()),
       monthlyRent: parseAmount(formInputs.monthlyRent.toString()),
@@ -245,20 +245,20 @@
           class="input-field w-full font-mono text-lg"
           placeholder="5K"
         />
-        <p class="help-text">Taxes, HOA, maintenance, etc.</p>
+        <p class="help-text">Maintenance, utilities, HOA, etc.</p>
       </div>
 
       <div class="space-y-2">
         <label class="label">
-          Monthly Expenses
+          Annual Income from Asset
         </label>
         <input
           type="text"
-          bind:value={formInputs.monthlyExpenses}
+          bind:value={formInputs.annualIncome}
           class="input-field w-full font-mono text-lg"
-          placeholder="500 or -4K"
+          placeholder="0"
         />
-        <p class="help-text">Utilities, etc. (can be negative if earning income)</p>
+        <p class="help-text">Rental income or other income from the asset</p>
       </div>
 
       <div class="md:col-span-2 space-y-2">

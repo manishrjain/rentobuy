@@ -95,11 +95,7 @@
           <div><span class="text-light-cyan dark:text-monokai-cyan">Loan Duration:</span> {formatDuration(inputs.loanTerm)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Annual Tax & Insurance:</span> {formatCurrency(inputs.annualInsurance, true)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Other Annual Costs:</span> {formatCurrency(inputs.annualTaxes, true)}</div>
-          {#if inputs.monthlyExpenses < 0}
-            <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Income:</span> {formatCurrency(-inputs.monthlyExpenses, true)}</div>
-          {:else}
-            <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Expenses:</span> {formatCurrency(inputs.monthlyExpenses, true)}</div>
-          {/if}
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Annual Income from Asset:</span> {formatCurrency(inputs.annualIncome, true)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Appreciation Rate:</span> {formatAppreciationRates(inputs.appreciationRate)}</div>
         </div>
       </div>
@@ -149,11 +145,7 @@
           {/if}
           <div><span class="text-light-cyan dark:text-monokai-cyan">Annual Tax & Insurance:</span> {formatCurrency(inputs.annualInsurance, true)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Other Annual Costs:</span> {formatCurrency(inputs.annualTaxes, true)}</div>
-          {#if inputs.monthlyExpenses < 0}
-            <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Income:</span> {formatCurrency(-inputs.monthlyExpenses, true)}</div>
-          {:else}
-            <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Expenses:</span> {formatCurrency(inputs.monthlyExpenses, true)}</div>
-          {/if}
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Annual Income from Asset:</span> {formatCurrency(inputs.annualIncome, true)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Appreciation Rate (if keeping):</span> {formatAppreciationRates(inputs.appreciationRate)}</div>
         </div>
       </div>
