@@ -206,7 +206,7 @@
       scenario: formInputs.scenario as ScenarioType,
       inflationRate: parseFloat(formInputs.inflationRate) || 0,
       investmentReturnRate: parseFloat(formInputs.investmentReturnRate) || 0,
-      include30Year: formInputs.include30Year === 'yes' || formInputs.include30Year === true,
+      projectionYears: parseInt(formInputs.projectionYears) || 10,
       purchasePrice: parseAmount(formInputs.purchasePrice.toString()),
       currentMarketValue: formInputs.currentMarketValue ? parseAmount(formInputs.currentMarketValue.toString()) : undefined,
       annualInsurance: parseAmount(formInputs.annualInsurance.toString()),

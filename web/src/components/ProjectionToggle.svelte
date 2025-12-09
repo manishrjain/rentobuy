@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
 
-  export let include30Year = false;
+  export let projectionYears = 10;
 
   const dispatch = createEventDispatcher();
 
@@ -14,9 +14,9 @@
   on:click={handleClick}
   class="projection-toggle"
   aria-label="Toggle projection period"
-  title="Toggle between 10-year and 30-year projections"
+  title="Toggle between 10, 20, and 30-year projections"
 >
-  <span class="font-mono text-xs font-bold">{include30Year ? '30y' : '10y'}</span>
+  <span class="font-mono text-xs font-bold">{projectionYears}y</span>
 </button>
 
 <style>

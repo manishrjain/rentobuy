@@ -7,6 +7,7 @@
   export let inputs: CalculatorInputs;
   export let results: CalculationResults;
   export let showFullNumbers = false;
+  export let viewMode: 'cumulative' | 'yearly' = 'cumulative';
 
   // Reactive formatter that updates when toggle changes
   $: formatCurrency = (amount: number, forceFullNumbers = false): string => {
@@ -59,6 +60,113 @@
   $: downpayment = inputs.purchasePrice - inputs.loanAmount;
   $: effectiveLoanValues = getEffectiveLoanValues(inputs);
   $: showSellingColumns = inputs.scenario === 'sell_vs_keep' || inputs.includeSelling;
+
+  // Compute yearly amortization values from cumulative data
+  $: yearlyAmortizationData = results.amortizationTable?.map((row, index) => {
+    if (index === 0) {
+      // First row (0y) - no payments yet
+      return {
+        ...row,
+        principalPaid: 0,
+        interestPaid: 0,
+        taxDeduction: 0,
+        effectiveInterest: 0,
+        effectiveLoanPayment: 0,
+      };
+    }
+    const prevRow = results.amortizationTable![index - 1];
+    const principalPaid = row.principalPaid - prevRow.principalPaid;
+    const interestPaid = row.interestPaid - prevRow.interestPaid;
+    const taxDeduction = row.taxDeduction - prevRow.taxDeduction;
+    const effectiveInterest = row.effectiveInterest - prevRow.effectiveInterest;
+    const effectiveLoanPayment = row.effectiveLoanPayment - prevRow.effectiveLoanPayment;
+    return {
+      ...row,
+      principalPaid,
+      interestPaid,
+      taxDeduction,
+      effectiveInterest,
+      effectiveLoanPayment,
+    };
+  }) ?? [];
+
+  // Compute yearly expenditure values from cumulative data (all fields are now cumulative in raw data)
+  $: yearlyExpenditureData = results.expenditureTable?.map((row, index) => {
+    if (index === 0) {
+      return { ...row };
+    }
+    const prevRow = results.expenditureTable![index - 1];
+    return {
+      ...row,
+      loanPayment: row.loanPayment - prevRow.loanPayment,
+      taxDeduction: row.taxDeduction - prevRow.taxDeduction,
+      effectiveLoanPayment: Math.max(0, row.effectiveLoanPayment - prevRow.effectiveLoanPayment),
+      costs: row.costs - prevRow.costs,
+      buyingExpenditure: row.buyingExpenditure - prevRow.buyingExpenditure,
+      rentingExpenditure: row.rentingExpenditure - prevRow.rentingExpenditure,
+      difference: (row.buyingExpenditure - prevRow.buyingExpenditure) - (row.rentingExpenditure - prevRow.rentingExpenditure),
+    };
+  }) ?? [];
+
+  // Compute yearly sale proceeds values (most are point-in-time, but we can show changes)
+  $: yearlySaleProceedsData = results.saleProceedsTable?.map((row, index) => {
+    if (index === 0) {
+      return { ...row };
+    }
+    const prevRow = results.saleProceedsTable![index - 1];
+    return {
+      ...row,
+      salePrice: row.salePrice - prevRow.salePrice,
+      totalSellingCosts: row.totalSellingCosts - prevRow.totalSellingCosts,
+      loanPayoff: row.loanPayoff - prevRow.loanPayoff,
+      capitalGains: row.capitalGains - prevRow.capitalGains,
+      taxOnGains: row.taxOnGains - prevRow.taxOnGains,
+      netProceeds: row.netProceeds - prevRow.netProceeds,
+    };
+  }) ?? [];
+
+  // Compute yearly comparison values
+  $: yearlyComparisonData = results.comparisonTable?.map((row, index) => {
+    if (index === 0) {
+      return { ...row };
+    }
+    const prevRow = results.comparisonTable![index - 1];
+    return {
+      ...row,
+      assetValue: row.assetValue - prevRow.assetValue,
+      buyingNetWorth: row.buyingNetWorth - prevRow.buyingNetWorth,
+      cumulativeSavings: row.cumulativeSavings - prevRow.cumulativeSavings,
+      marketReturn: row.marketReturn - prevRow.marketReturn,
+      rentingNetWorth: row.rentingNetWorth - prevRow.rentingNetWorth,
+      difference: row.difference - prevRow.difference,
+    };
+  }) ?? [];
+
+  // Compute yearly keep expenses values from cumulative data
+  $: yearlyKeepExpensesData = results.keepExpensesTable?.map((row, index) => {
+    if (index === 0) {
+      return { ...row };
+    }
+    const prevRow = results.keepExpensesTable![index - 1];
+    return {
+      ...row,
+      loanPayment: row.loanPayment - prevRow.loanPayment,
+      taxDeduction: row.taxDeduction - prevRow.taxDeduction,
+      effectiveLoanPayment: Math.max(0, row.effectiveLoanPayment - prevRow.effectiveLoanPayment),
+      taxInsurance: row.taxInsurance - prevRow.taxInsurance,
+      otherCosts: row.otherCosts - prevRow.otherCosts,
+      cumulativeExp: row.cumulativeExp - prevRow.cumulativeExp,
+      investmentReturns: row.investmentReturns - prevRow.investmentReturns,
+      netPosition: row.netPosition - prevRow.netPosition,
+    };
+  }) ?? [];
+
+  // Display data based on view mode
+  $: amortizationDisplayData = viewMode === 'cumulative' ? results.amortizationTable : yearlyAmortizationData;
+  $: expenditureDisplayData = viewMode === 'cumulative' ? results.expenditureTable : yearlyExpenditureData;
+  $: saleProceedsDisplayData = viewMode === 'cumulative' ? results.saleProceedsTable : yearlySaleProceedsData;
+  $: comparisonDisplayData = viewMode === 'cumulative' ? results.comparisonTable : yearlyComparisonData;
+  $: keepExpensesDisplayData = viewMode === 'cumulative' ? results.keepExpensesTable : yearlyKeepExpensesData;
 </script>
 
 <div id="results-content" class="space-y-8">
@@ -213,10 +321,18 @@
   <!-- Market Data Reference -->
   <MarketDataTable />
 
+  <!-- Yearly Mode Disclaimer -->
+  {#if viewMode === 'yearly'}
+    <div class="bg-light-orange/10 dark:bg-monokai-orange/10 border border-light-orange dark:border-monokai-orange rounded-lg p-4 text-sm">
+      <span class="text-light-orange dark:text-monokai-orange font-bold">Note:</span>
+      <span class="text-light-text dark:text-monokai-text"> Yearly view shows period-over-period changes. Some values (like Loan Balance, Asset Value) are point-in-time snapshots and their yearly "change" may be less intuitive than cumulative totals.</span>
+    </div>
+  {/if}
+
   <!-- Amortization Table -->
   {#if results.amortizationTable && inputs.loanAmount > 0}
     <section id="loan-amortization" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
-      <h2 class="section-title">Loan Amortization</h2>
+      <h2 class="section-title">Loan Amortization <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">{viewMode === 'cumulative' ? 'Cumulative' : 'Yearly'}</span></h2>
       <div class="table-container">
         <table class="data-table">
           <thead>
@@ -233,7 +349,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each results.amortizationTable as row}
+            {#each amortizationDisplayData as row}
               <tr>
                 <td class="font-mono">{row.period}</td>
                 <td class="text-right font-mono">{formatCurrency(row.principalPaid)}</td>
@@ -252,12 +368,22 @@
       <div class="help-text mt-2">
         <p>Note: Monthly payment is fixed. Each payment covers interest on remaining balance, with the rest going to principal.</p>
         <div class="grid grid-cols-[auto_1fr] gap-x-2">
-          <span class="text-light-cyan dark:text-monokai-cyan">Principal</span><span>= Cumulative amount paid toward the loan balance.</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">Interest</span><span>= Cumulative interest paid to the lender.</span>
-          {#if inputs.mortgageInterestDeduction > 0}
-            <span class="text-light-cyan dark:text-monokai-cyan">Tax Deduction</span><span>= Interest × {formatPercent(inputs.mortgageInterestDeduction)} (your mortgage interest deduction rate).</span>
-            <span class="text-light-cyan dark:text-monokai-cyan">Eff. Interest</span><span>= Interest - Tax Deduction.</span>
-            <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Principal + Eff. Interest (cumulative amount actually paid after tax savings).</span>
+          {#if viewMode === 'cumulative'}
+            <span class="text-light-cyan dark:text-monokai-cyan">Principal</span><span>= Cumulative amount paid toward the loan balance.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Interest</span><span>= Cumulative interest paid to the lender.</span>
+            {#if inputs.mortgageInterestDeduction > 0}
+              <span class="text-light-cyan dark:text-monokai-cyan">Tax Deduction</span><span>= Interest × {formatPercent(inputs.mortgageInterestDeduction)} (your mortgage interest deduction rate).</span>
+              <span class="text-light-cyan dark:text-monokai-cyan">Eff. Interest</span><span>= Interest - Tax Deduction.</span>
+              <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Principal + Eff. Interest (cumulative amount actually paid after tax savings).</span>
+            {/if}
+          {:else}
+            <span class="text-light-cyan dark:text-monokai-cyan">Principal</span><span>= Amount paid toward loan balance in this period.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Interest</span><span>= Interest paid to the lender in this period.</span>
+            {#if inputs.mortgageInterestDeduction > 0}
+              <span class="text-light-cyan dark:text-monokai-cyan">Tax Deduction</span><span>= Interest × {formatPercent(inputs.mortgageInterestDeduction)} (your mortgage interest deduction rate).</span>
+              <span class="text-light-cyan dark:text-monokai-cyan">Eff. Interest</span><span>= Interest - Tax Deduction for this period.</span>
+              <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Principal + Eff. Interest (amount actually paid after tax savings in this period).</span>
+            {/if}
           {/if}
           <span class="text-light-cyan dark:text-monokai-cyan">Loan Balance</span><span>= Remaining amount owed on the loan.</span>
         </div>
@@ -268,13 +394,13 @@
   <!-- Expenditure Table (BUY vs RENT only) -->
   {#if results.expenditureTable}
     <section id="expenditure-comparison" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
-      <h2 class="section-title">Total Expenditure Comparison</h2>
+      <h2 class="section-title">Total Expenditure Comparison <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">{viewMode === 'cumulative' ? 'Cumulative' : 'Yearly'}</span></h2>
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
               <th>Period</th>
-              <th class="text-right">{#if inputs.mortgageInterestDeduction > 0}<a href="#loan-amortization" class="underline" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Eff. Loan Pmt ③</a>{:else}Loan Payment{/if}</th>
+              <th class="text-right">{#if inputs.mortgageInterestDeduction > 0}<a href="#loan-amortization" class="hover:underline cursor-pointer" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Eff. Loan Pmt ③</a>{:else}Loan Payment{/if}</th>
               <th class="text-right">Costs</th>
               <th class="text-right">Buying Expend.</th>
               <th class="text-right">Renting Expend.</th>
@@ -282,14 +408,14 @@
             </tr>
           </thead>
           <tbody>
-            {#each results.expenditureTable as row}
+            {#each expenditureDisplayData as row}
               <tr>
                 <td class="font-mono">{row.period}</td>
                 <td class="text-right font-mono">{formatCurrency(inputs.mortgageInterestDeduction > 0 ? row.effectiveLoanPayment : row.loanPayment)}</td>
                 <td class="text-right font-mono">{formatCurrency(row.costs)}</td>
                 <td class="text-right font-mono">{formatCurrency(row.buyingExpenditure)}</td>
                 <td class="text-right font-mono">{formatCurrency(row.rentingExpenditure)}</td>
-                <td class="text-right font-mono">{formatCurrency(row.difference)}</td>
+                <td class="text-right font-mono" class:text-light-pink={row.difference > 0} class:dark:text-monokai-pink={row.difference > 0} class:text-light-green={row.difference < 0} class:dark:text-monokai-green={row.difference < 0}>{formatCurrency(row.difference)}</td>
               </tr>
             {/each}
           </tbody>
@@ -298,15 +424,27 @@
       <div class="help-text mt-2">
         <p>Note: All recurring costs (insurance, taxes, rent, HOA, etc.) are inflated annually at {formatPercent(inputs.inflationRate)} rate.</p>
         <div class="grid grid-cols-[auto_1fr] gap-x-2">
-          {#if inputs.mortgageInterestDeduction > 0}
-            <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Annual effective loan payment after tax deduction (from <a href="#loan-amortization" class="underline" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Loan Amortization</a>).</span>
+          {#if viewMode === 'cumulative'}
+            {#if inputs.mortgageInterestDeduction > 0}
+              <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Cumulative effective loan payment after tax deduction (from <a href="#loan-amortization" class="underline" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Loan Amortization</a>).</span>
+            {:else}
+              <span class="text-light-cyan dark:text-monokai-cyan">Loan Payment</span><span>= Cumulative loan payments.</span>
+            {/if}
+            <span class="text-light-cyan dark:text-monokai-cyan">Costs</span><span>= Cumulative taxes, insurance, and other costs (inflated). Negative means income exceeds costs.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Buying Expend.</span><span>= Cumulative buying costs (downpayment + loan payments + costs).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Renting Expend.</span><span>= Cumulative renting costs (deposit + rent + annual rent costs).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">BUY - RENT ②</span><span>= Cumulative expenditure difference. Negative means renting costs more; this difference is invested as savings.</span>
           {:else}
-            <span class="text-light-cyan dark:text-monokai-cyan">Loan Payment</span><span>= Annual loan payments for that year (stops after loan term).</span>
+            {#if inputs.mortgageInterestDeduction > 0}
+              <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Annual effective loan payment after tax deduction (from <a href="#loan-amortization" class="underline" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Loan Amortization</a>).</span>
+            {:else}
+              <span class="text-light-cyan dark:text-monokai-cyan">Loan Payment</span><span>= Annual loan payments for that year (stops after loan term).</span>
+            {/if}
+            <span class="text-light-cyan dark:text-monokai-cyan">Costs</span><span>= Annual taxes, insurance, and other costs (inflated). Negative means income exceeds costs.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Buying Expend.</span><span>= Buying costs for this period.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Renting Expend.</span><span>= Renting costs for this period.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">BUY - RENT ②</span><span>= Expenditure difference for this period.</span>
           {/if}
-          <span class="text-light-cyan dark:text-monokai-cyan">Costs</span><span>= Annual taxes, insurance, and other costs (inflated). Negative means income exceeds costs.</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">Buying Expend.</span><span>= Cumulative buying costs (downpayment + loan payments + costs).</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">Renting Expend.</span><span>= Cumulative renting costs (deposit + rent + annual rent costs).</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">BUY - RENT ②</span><span>= Expenditure difference. Negative means renting costs more; this difference is invested as savings.</span>
         </div>
       </div>
     </section>
@@ -315,22 +453,22 @@
   <!-- Keep Expenses Breakdown (SELL vs KEEP only) -->
   {#if results.keepExpensesTable}
     <section id="keep-invest-position" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
-      <h2 class="section-title">KEEP Analysis: Invest Position</h2>
+      <h2 class="section-title">KEEP Analysis: Invest Position <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">{viewMode === 'cumulative' ? 'Cumulative' : 'Yearly'}</span></h2>
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
               <th>Period</th>
-              <th class="text-right">{#if inputs.mortgageInterestDeduction > 0}<a href="#loan-amortization" class="underline" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Eff. Loan Pmt ③</a>{:else}Loan Payment{/if}</th>
+              <th class="text-right">{#if inputs.mortgageInterestDeduction > 0}<a href="#loan-amortization" class="hover:underline cursor-pointer" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Eff. Loan Pmt ③</a>{:else}Loan Payment{/if}</th>
               <th class="text-right">Costs</th>
-              <th class="text-right">Cumulative Exp</th>
+              <th class="text-right">Expenses</th>
               <th class="text-right">Invest Returns</th>
               <th class="text-right">Investment Val</th>
               <th class="text-right">Net Position ②</th>
             </tr>
           </thead>
           <tbody>
-            {#each results.keepExpensesTable as row}
+            {#each keepExpensesDisplayData as row}
               <tr>
                 <td class="font-mono">{row.period}</td>
                 <td class="text-right font-mono">{formatCurrency(inputs.mortgageInterestDeduction > 0 ? row.effectiveLoanPayment : row.loanPayment)}</td>
@@ -347,16 +485,29 @@
       <div class="help-text mt-2">
         <p>Note: This table tracks only cash flow (expenses and income) from the asset, not asset value or equity.</p>
         <div class="grid grid-cols-[auto_1fr] gap-x-2">
-          {#if inputs.mortgageInterestDeduction > 0}
-            <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Annual effective loan payment after tax deduction (from <a href="#loan-amortization" class="underline" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Loan Amortization</a>).</span>
+          {#if viewMode === 'cumulative'}
+            {#if inputs.mortgageInterestDeduction > 0}
+              <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Cumulative effective loan payment after tax deduction (from <a href="#loan-amortization" class="underline" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Loan Amortization</a>).</span>
+            {:else}
+              <span class="text-light-cyan dark:text-monokai-cyan">Loan Payment</span><span>= Cumulative loan payments.</span>
+            {/if}
+            <span class="text-light-cyan dark:text-monokai-cyan">Costs</span><span>= Cumulative tax, insurance, and other costs (inflated at {formatPercent(inputs.inflationRate)} annually). Negative means income exceeds costs.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Expenses</span><span>= Running total of raw expenses.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Invest Returns</span><span>= Cumulative investment returns (at {formatPercent(inputs.investmentReturnRate)} annual return).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Investment Val</span><span>= Current value of investments (initial cash + returns - withdrawals).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Net Position ②</span><span>= Investment value minus real out-of-pocket costs.</span>
           {:else}
-            <span class="text-light-cyan dark:text-monokai-cyan">Loan Payment</span><span>= Loan payments for that year (stops after loan term).</span>
+            {#if inputs.mortgageInterestDeduction > 0}
+              <span class="text-light-cyan dark:text-monokai-cyan">Eff. Loan Pmt ③</span><span>= Annual effective loan payment after tax deduction (from <a href="#loan-amortization" class="underline" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Loan Amortization</a>).</span>
+            {:else}
+              <span class="text-light-cyan dark:text-monokai-cyan">Loan Payment</span><span>= Loan payments for that year.</span>
+            {/if}
+            <span class="text-light-cyan dark:text-monokai-cyan">Costs</span><span>= Tax, insurance, and other costs for this period (inflated at {formatPercent(inputs.inflationRate)} annually).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Expenses</span><span>= Raw expenses for this period.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Invest Returns</span><span>= Investment returns earned in this period.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Investment Val</span><span>= Current value of investments (point-in-time snapshot).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Net Position ②</span><span>= Change in net position for this period.</span>
           {/if}
-          <span class="text-light-cyan dark:text-monokai-cyan">Costs</span><span>= Tax, insurance, and other annual costs (inflated at {formatPercent(inputs.inflationRate)} annually). Negative means income from asset exceeds costs.</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">Cumulative Exp</span><span>= Running total of raw expenses.</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">Invest Returns</span><span>= Cumulative investment returns (at {formatPercent(inputs.investmentReturnRate)} annual return).</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">Investment Val</span><span>= Current value of investments (initial cash + returns - withdrawals).</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">Net Position ②</span><span>= Investment value minus real out-of-pocket costs.</span>
         </div>
       </div>
     </section>
@@ -364,7 +515,7 @@
 
   <!-- KEEP Sale Proceeds (for sell_vs_keep) or Sale Proceeds (for buy_vs_rent) -->
   <section id="keep-sale-proceeds" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
-    <h2 class="section-title">{inputs.scenario === 'sell_vs_keep' ? 'KEEP Analysis: Future Sale Proceeds' : 'BUY Analysis: Future Asset Value'}</h2>
+    <h2 class="section-title">{inputs.scenario === 'sell_vs_keep' ? 'KEEP Analysis: Future Sale Proceeds' : 'BUY Analysis: Future Asset Value'} <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">Cumulative</span></h2>
     <div class="table-container">
       <table class="data-table">
         <thead>
@@ -429,7 +580,7 @@
   <!-- Comparison Table (BUY vs RENT) -->
   {#if results.comparisonTable}
     <section class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
-      <h2 class="section-title">Net Worth Projections: BUY vs RENT</h2>
+      <h2 class="section-title">Net Worth Projections: BUY vs RENT <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">Cumulative</span></h2>
       <div class="table-container">
         <table class="data-table">
           <thead>
@@ -467,7 +618,7 @@
           <span class="text-light-cyan dark:text-monokai-cyan">Buying NW ①</span><span>= Asset value minus remaining loan (or net sale proceeds if selling, from BUY Analysis: Future Asset Value).</span>
           <span class="text-light-cyan dark:text-monokai-cyan">Cum Savings ②</span><span>= Raw cost difference without investment growth (from Total Expenditure Comparison).</span>
           <span class="text-light-cyan dark:text-monokai-cyan">Market Return</span><span>= Investment growth at {formatPercent(inputs.investmentReturnRate)} annual rate.</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">RENT Net Worth</span><span>= Cumulative savings + market return.</span>
+          <span class="text-light-cyan dark:text-monokai-green">RENT Net Worth</span><span>= Cumulative savings + market return.</span>
           <span class="text-light-cyan dark:text-monokai-cyan">BUY - RENT</span><span>= Difference in net worth (positive = buying wins).</span>
         </div>
       </div>
@@ -477,7 +628,7 @@
   <!-- Sell vs Keep Comparison -->
   {#if results.sellVsKeepTable}
     <section class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
-      <h2 class="section-title">Net Worth Projections: SELL vs KEEP</h2>
+      <h2 class="section-title">Net Worth Projections: SELL vs KEEP <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">Cumulative</span></h2>
       <div class="table-container">
         <table class="data-table">
           <thead>

@@ -9,6 +9,7 @@
   import ShareButton from './components/ShareButton.svelte';
   import CopyReviewButton from './components/CopyReviewButton.svelte';
   import ProjectionToggle from './components/ProjectionToggle.svelte';
+  import ViewModeToggle from './components/ViewModeToggle.svelte';
   import SaveDialog from './components/SaveDialog.svelte';
   import LoadDialog from './components/LoadDialog.svelte';
   import { theme } from './lib/theme';
@@ -20,7 +21,7 @@
     scenario: 'buy_vs_rent',
     inflationRate: '3',
     investmentReturnRate: '10',
-    include30Year: 'no',
+    projectionYears: '10',
     purchasePrice: '500K',
     currentMarketValue: '',
     annualInsurance: '3K',
@@ -56,15 +57,19 @@
   let shareCopied = false;
   let reviewCopied = false;
   let showFullNumbers = false;
+  let viewMode: 'cumulative' | 'yearly' = 'cumulative';
 
-  // Reactive boolean for 30-year projection toggle
-  $: include30Year = formInputs.include30Year === 'yes';
+  // Reactive number for projection years toggle
+  $: projectionYears = parseInt(formInputs.projectionYears) || 10;
 
   function handleProjectionToggle() {
-    formInputs.include30Year = formInputs.include30Year === 'yes' ? 'no' : 'yes';
+    // Cycle through 10 -> 20 -> 30 -> 10
+    const current = parseInt(formInputs.projectionYears) || 10;
+    const next = current === 10 ? 20 : current === 20 ? 30 : 10;
+    formInputs.projectionYears = String(next);
     // If on results page, recalculate with new projection setting
     if (showResults && calculatedInputs) {
-      calculatedInputs = { ...calculatedInputs, include30Year: formInputs.include30Year === 'yes' };
+      calculatedInputs = { ...calculatedInputs, projectionYears: next };
       results = calculate(calculatedInputs);
     }
   }
@@ -238,10 +243,11 @@
     const resultsElement = document.getElementById('results-content');
     if (!resultsElement) return;
 
-    // Switch to full numbers for LLM review (don't switch back - better for readability)
+    // Switch to full numbers and cumulative view for LLM review
     showFullNumbers = true;
+    viewMode = 'cumulative';
 
-    // Wait for Svelte to re-render with full numbers
+    // Wait for Svelte to re-render
     await new Promise(resolve => setTimeout(resolve, 50));
 
     const prompt = `Please review these financial calculations from a Buy vs Rent / Sell vs Keep calculator. Verify the math is correct, provide a brief summary of the key findings, and be ready to answer follow-up questions.
@@ -279,7 +285,8 @@
           </button>
           <div class="flex items-center gap-1 md:gap-2">
             <CopyReviewButton copied={reviewCopied} disabled={!showResults} on:copy={handleCopyReview} />
-            <ProjectionToggle {include30Year} on:toggle={handleProjectionToggle} />
+            <ViewModeToggle {viewMode} disabled={!showResults} on:toggle={() => viewMode = viewMode === 'cumulative' ? 'yearly' : 'cumulative'} />
+            <ProjectionToggle {projectionYears} on:toggle={handleProjectionToggle} />
             <NumberFormatToggle {showFullNumbers} on:toggle={() => { showFullNumbers = !showFullNumbers; localStorage.setItem('brisk_full_numbers', String(showFullNumbers)); }} />
             <ShareButton copied={shareCopied} on:share={handleShare} />
             <ThemeToggle />
@@ -297,7 +304,7 @@
     {#if !showResults}
       <TerminalForm bind:formInputs on:calculate={handleCalculate} on:save={() => showSaveDialog = true} on:load={() => showLoadDialog = true} />
     {:else if results && calculatedInputs}
-      <ResultsDisplay inputs={calculatedInputs} {results} {showFullNumbers} />
+      <ResultsDisplay inputs={calculatedInputs} {results} {showFullNumbers} {viewMode} />
     {/if}
   </div>
 </main>

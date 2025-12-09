@@ -7,7 +7,7 @@ export interface CalculatorInputs {
   // Economic assumptions
   inflationRate: number;
   investmentReturnRate: number;
-  include30Year: boolean;
+  projectionYears: number; // 10, 20, or 30
 
   // Buying/Asset
   purchasePrice: number;

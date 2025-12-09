@@ -12,62 +12,24 @@ export function calculateMonthlyPayment(
   return (principal * (monthlyRate * factor)) / (factor - 1);
 }
 
-export function getPeriods(loanDuration: number, include30Year: boolean): Period[] {
-  const basePeriods: Period[] = [
-    { label: '  0y', months: 0 },
-    { label: '  1y', months: 12 },
-    { label: '  2y', months: 24 },
-    { label: '  3y', months: 36 },
-    { label: '  4y', months: 48 },
-    { label: '  5y', months: 60 },
-    { label: '  6y', months: 72 },
-    { label: '  7y', months: 84 },
-    { label: '  8y', months: 96 },
-    { label: '  9y', months: 108 },
-    { label: ' 10y', months: 120 },
-  ];
-
-  const extendedPeriods: Period[] = [
-    { label: ' 15y', months: 180 },
-    { label: ' 20y', months: 240 },
-    { label: ' 30y', months: 360 },
-  ];
-
-  let standardPeriods = basePeriods;
-  const maxMonths = include30Year ? 360 : 120;
-
-  if (include30Year) {
-    standardPeriods = [...basePeriods, ...extendedPeriods];
-  }
+export function getPeriods(loanDuration: number, projectionYears: number): Period[] {
+  const maxYears = projectionYears;
+  const maxMonths = maxYears * 12;
 
   const periods: Period[] = [];
-  let loanTermLabel = '';
-  let includeLoanTerm = false;
 
-  // Only include loan term if it's within the allowed range
-  if (loanDuration > 0 && loanDuration % 12 === 0 && loanDuration <= maxMonths) {
-    const years = loanDuration / 12;
-    loanTermLabel = `X ${years}y`;
-    includeLoanTerm = true;
-  }
+  // Generate periods for years 0 to maxYears
+  for (let year = 0; year <= maxYears; year++) {
+    const months = year * 12;
+    const loanTermYear = loanDuration / 12;
 
-  let inserted = false;
-  for (const period of standardPeriods) {
-    if (includeLoanTerm && !inserted && loanDuration < period.months) {
-      periods.push({ label: loanTermLabel, months: loanDuration });
-      inserted = true;
-    }
-
-    if (period.months === loanDuration && includeLoanTerm) {
-      periods.push({ label: loanTermLabel, months: loanDuration });
-      inserted = true;
+    // Check if this is the loan term year (and loan term is not a round year already covered)
+    if (loanDuration > 0 && loanDuration === months && loanDuration % 12 === 0 && loanDuration <= maxMonths) {
+      // Mark this year as the loan term year
+      periods.push({ label: `X${year.toString().padStart(3)}y`, months });
     } else {
-      periods.push(period);
+      periods.push({ label: `${year.toString().padStart(3)}y`, months });
     }
-  }
-
-  if (includeLoanTerm && !inserted) {
-    periods.push({ label: loanTermLabel, months: loanDuration });
   }
 
   return periods;
@@ -302,7 +264,11 @@ export function calculateSaleProceeds(
   taxOnGains: number;
   netProceeds: number;
 } {
-  const startingPrice = inputs.currentMarketValue || inputs.purchasePrice;
+  // For buy_vs_rent, always use purchasePrice as starting point
+  // For sell_vs_keep, use currentMarketValue if provided (property may have appreciated)
+  const startingPrice = inputs.scenario === 'sell_vs_keep' && inputs.currentMarketValue
+    ? inputs.currentMarketValue
+    : inputs.purchasePrice;
   const salePrice = calculateAssetValue(startingPrice, months, inputs.appreciationRate);
 
   let loanPayoff: number;
@@ -380,7 +346,7 @@ export function calculateRentingNetWorth(
 export function calculate(inputs: CalculatorInputs): CalculationResults {
   const costs = populateMonthlyCosts(inputs);
   const { effectiveLoanTerm, effectiveLoanAmount, refinanceCashOut } = getEffectiveLoanValues(inputs);
-  const periods = getPeriods(effectiveLoanTerm, inputs.include30Year);
+  const periods = getPeriods(effectiveLoanTerm, inputs.projectionYears);
 
   const keepTracking = calculateKeepInvestmentTracking(
     costs.monthlyBuyingCosts,
@@ -442,10 +408,8 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
       });
     }
 
-    // Expenditure table
-    const loanValues = getEffectiveLoanValues(inputs);
-    const taxRate = inputs.mortgageInterestDeduction / 100;
-    results.expenditureTable = periods.map((period) => {
+    // Expenditure table - uses cumulative values from amortization table
+    results.expenditureTable = periods.map((period, index) => {
       const downpayment = inputs.purchasePrice - inputs.loanAmount;
       let buyingExpenditure = downpayment;
       let rentingExpenditure = inputs.rentDeposit;
@@ -455,28 +419,25 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
         rentingExpenditure += costs.monthlyRentingCosts[i];
       }
 
-      // Calculate annual loan payment and costs for that year
-      const year = Math.floor(period.months / 12);
-      const inflationFactor = Math.pow(1 + inputs.inflationRate / 100, year);
-      const annualCosts = (inputs.annualInsurance + inputs.annualTaxes - inputs.annualIncome) * inflationFactor;
-      const loanPayment = period.months <= loanValues.effectiveLoanTerm ? loanValues.monthlyLoanPayment * 12 : 0;
+      // Get cumulative values directly from amortization table
+      const amortRow = results.amortizationTable?.[index];
+      const loanPayment = amortRow ? amortRow.principalPaid + amortRow.interestPaid : 0;
+      const taxDeduction = amortRow?.taxDeduction ?? 0;
+      const effectiveLoanPayment = amortRow?.effectiveLoanPayment ?? 0;
 
-      // Calculate annual interest for this year to get tax deduction
-      // Interest paid in year N = cumulative at end of year N - cumulative at end of year N-1
-      const monthIndex = Math.min(period.months - 1, costs.cumulativeInterestPaid.length - 1);
-      const prevMonthIndex = Math.max(0, period.months - 13);
-      const yearInterest = period.months === 0 ? 0 :
-        period.months <= 12 ? costs.cumulativeInterestPaid[monthIndex] :
-        costs.cumulativeInterestPaid[monthIndex] - costs.cumulativeInterestPaid[prevMonthIndex];
-      const taxDeduction = yearInterest * taxRate;
-      const effectiveLoanPayment = loanPayment - taxDeduction;
+      // Calculate cumulative costs
+      let cumulativeCosts = 0;
+      for (let year = 0; year < period.months / 12; year++) {
+        const inflationFactor = Math.pow(1 + inputs.inflationRate / 100, year);
+        cumulativeCosts += (inputs.annualInsurance + inputs.annualTaxes - inputs.annualIncome) * inflationFactor;
+      }
 
       return {
         period: 'EXP ' + period.label,
         loanPayment,
         taxDeduction,
         effectiveLoanPayment,
-        costs: annualCosts,
+        costs: cumulativeCosts,
         buyingExpenditure,
         rentingExpenditure,
         difference: buyingExpenditure - rentingExpenditure,
@@ -573,24 +534,17 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
       });
     }
 
-    results.keepExpensesTable = periods.map((period) => {
-      // Calculate annual interest for this year to get tax deduction
+    results.keepExpensesTable = periods.map((period, index) => {
       const monthIndex = Math.min(period.months - 1, costs.cumulativeInterestPaid.length - 1);
-      const prevMonthIndex = Math.max(0, period.months - 13);
-      const yearInterest = period.months === 0 ? 0 :
-        period.months <= 12 ? costs.cumulativeInterestPaid[monthIndex] :
-        costs.cumulativeInterestPaid[monthIndex] - costs.cumulativeInterestPaid[prevMonthIndex];
-      const taxDeduction = yearInterest * taxRate;
 
       if (period.months === 0) {
-        const loanPayment = loanValues.monthlyLoanPayment * 12;
         return {
           period: 'KEEP ' + period.label,
-          loanPayment,
+          loanPayment: 0,
           taxDeduction: 0,
-          effectiveLoanPayment: loanPayment,
-          taxInsurance: inputs.annualInsurance,
-          otherCosts: inputs.annualTaxes - inputs.annualIncome,
+          effectiveLoanPayment: 0,
+          taxInsurance: 0,
+          otherCosts: 0,
           cumulativeExp: 0,
           investmentVal: refinanceCashOut,
           investmentReturns: 0,
@@ -598,16 +552,20 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
         };
       }
 
-      const year = Math.floor(period.months / 12);
+      // Get cumulative values from amortization table for consistency
+      const amortRow = results.amortizationTable?.[index];
+      const loanPayment = amortRow ? amortRow.principalPaid + amortRow.interestPaid : 0;
+      const taxDeduction = amortRow?.taxDeduction ?? 0;
+      const effectiveLoanPayment = amortRow?.effectiveLoanPayment ?? 0;
 
-      // Calculate annual costs for that specific year
-      const inflationFactor = Math.pow(1 + inputs.inflationRate / 100, year);
-      const taxInsurance = inputs.annualInsurance * inflationFactor;
-      const otherCosts = (inputs.annualTaxes - inputs.annualIncome) * inflationFactor;
-
-      // Loan payment for that year (0 if loan is paid off)
-      const loanPayment = period.months <= loanValues.effectiveLoanTerm ? loanValues.monthlyLoanPayment * 12 : 0;
-      const effectiveLoanPayment = loanPayment - taxDeduction;
+      // Calculate cumulative costs (tax/insurance and other costs)
+      let cumulativeTaxInsurance = 0;
+      let cumulativeOtherCosts = 0;
+      for (let year = 0; year < period.months / 12; year++) {
+        const inflationFactor = Math.pow(1 + inputs.inflationRate / 100, year);
+        cumulativeTaxInsurance += inputs.annualInsurance * inflationFactor;
+        cumulativeOtherCosts += (inputs.annualTaxes - inputs.annualIncome) * inflationFactor;
+      }
 
       // Cumulative expenses up to this period
       let cumulativeExp = 0;
@@ -620,8 +578,8 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
         loanPayment,
         taxDeduction,
         effectiveLoanPayment,
-        taxInsurance,
-        otherCosts,
+        taxInsurance: cumulativeTaxInsurance,
+        otherCosts: cumulativeOtherCosts,
         cumulativeExp,
         investmentVal: keepTracking.monthlyKeepInvestmentValue[monthIndex],
         investmentReturns: keepTracking.monthlyKeepInvestmentReturns[monthIndex],

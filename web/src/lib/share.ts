@@ -3,7 +3,7 @@ const KEY_MAP: Record<string, string> = {
   scenario: 's',
   inflationRate: 'ir',
   investmentReturnRate: 'ivr',
-  include30Year: 'i30',
+  projectionYears: 'py',
   purchasePrice: 'pp',
   currentMarketValue: 'cmv',
   annualInsurance: 'ai',
