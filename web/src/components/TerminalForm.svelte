@@ -411,6 +411,11 @@
           Calculate
         </button>
       </div>
+
+      <!-- Privacy note -->
+      <div class="privacy-note">
+        <span class="text-light-text-muted dark:text-monokai-text-muted">Privacy first: All calculations are run locally in your browser. No financial data is sent to any server.</span>
+      </div>
     </form>
   </div>
 
@@ -688,6 +693,12 @@
 
   .calculate-button:active {
     opacity: 0.8;
+  }
+
+  .privacy-note {
+    margin-top: 1rem;
+    text-align: center;
+    font-size: 0.75rem;
   }
 
 </style>
