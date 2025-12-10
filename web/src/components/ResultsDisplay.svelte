@@ -400,7 +400,7 @@
             <tr>
               <th>Period</th>
               <th class="text-right">{#if inputs.mortgageInterestDeduction > 0}<a href="#loan-amortization" class="hover:underline cursor-pointer" on:click={(e) => scrollToSection(e, 'loan-amortization')}>Eff. Loan Pmt ③</a>{:else}Loan Payment{/if}</th>
-              <th class="text-right">Costs</th>
+              <th class="text-right">Costs - Income</th>
               <th class="text-right">Buying Expend.</th>
               <th class="text-right">Renting Expend.</th>
               <th class="text-right"><span class="text-light-pink dark:text-monokai-pink">BUY</span> - <span class="text-light-green dark:text-monokai-green">RENT</span> ②</th>
@@ -429,7 +429,7 @@
             {:else}
               <span class="text-light-cyan dark:text-monokai-cyan">Loan Payment</span><span>= Cumulative loan payments.</span>
             {/if}
-            <span class="text-light-cyan dark:text-monokai-cyan">Costs</span><span>= Cumulative taxes, insurance, and other costs (inflated). Negative means income exceeds costs.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Costs - Income</span><span>= Cumulative taxes, insurance, and other costs minus income (inflated). Negative means income exceeds costs.</span>
             <span class="text-light-cyan dark:text-monokai-cyan">Buying Expend.</span><span>= Cumulative buying costs (downpayment + loan payments + costs).</span>
             <span class="text-light-cyan dark:text-monokai-cyan">Renting Expend.</span><span>= Cumulative renting costs (deposit + rent + annual rent costs).</span>
             <span class="text-light-cyan dark:text-monokai-cyan">BUY - RENT ②</span><span>= Cumulative expenditure difference. Negative means renting costs more; this difference is invested as savings.</span>
@@ -439,7 +439,7 @@
             {:else}
               <span class="text-light-cyan dark:text-monokai-cyan">Loan Payment</span><span>= Annual loan payments for that year (stops after loan term).</span>
             {/if}
-            <span class="text-light-cyan dark:text-monokai-cyan">Costs</span><span>= Annual taxes, insurance, and other costs (inflated). Negative means income exceeds costs.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Costs - Income</span><span>= Annual taxes, insurance, and other costs minus income (inflated). Negative means income exceeds costs.</span>
             <span class="text-light-cyan dark:text-monokai-cyan">Buying Expend.</span><span>= Buying costs for this period.</span>
             <span class="text-light-cyan dark:text-monokai-cyan">Renting Expend.</span><span>= Renting costs for this period.</span>
             <span class="text-light-cyan dark:text-monokai-cyan">BUY - RENT ②</span><span>= Expenditure difference for this period.</span>
@@ -538,12 +538,12 @@
               <td class="font-mono">{row.period}</td>
               <td class="text-right font-mono">{formatCurrency(row.salePrice)}</td>
               {#if showSellingColumns}
-                <td class="text-right font-mono">{formatCurrency(row.totalSellingCosts)}</td>
+                <td class="text-right font-mono">{formatCurrency(-row.totalSellingCosts)}</td>
               {/if}
-              <td class="text-right font-mono">{formatCurrency(row.loanPayoff)}</td>
+              <td class="text-right font-mono">{formatCurrency(-row.loanPayoff)}</td>
               {#if showSellingColumns}
                 <td class="text-right font-mono">{formatCurrency(row.capitalGains)}</td>
-                <td class="text-right font-mono">{formatCurrency(row.taxOnGains)}</td>
+                <td class="text-right font-mono">{formatCurrency(-row.taxOnGains)}</td>
               {/if}
               <td class="text-right font-mono">{formatCurrency(row.netProceeds)}</td>
             </tr>
