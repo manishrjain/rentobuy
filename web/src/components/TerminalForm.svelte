@@ -347,7 +347,7 @@
         </div>
         {#if field.key === 'header_economic'}
           <div class="market-averages-inline">
-            <span class="text-light-text-muted dark:text-monokai-text-muted">Market Avg (10y): </span>
+            <span class="text-light-text-muted dark:text-monokai-text-muted">Market Avg (15y): </span>
             <span class="text-light-cyan dark:text-monokai-cyan">Inflation</span> {marketAvg.inflation.toFixed(1)}% ·
             <span class="text-light-cyan dark:text-monokai-cyan">VOO</span> {marketAvg.voo.toFixed(1)}% ·
             <span class="text-light-cyan dark:text-monokai-cyan">QQQ</span> {marketAvg.qqq.toFixed(1)}% ·

@@ -210,7 +210,7 @@ func calculateAnnualReturns(records [][]string) (map[string]float64, error) {
 
 func main() {
 	outputFile := flag.String("o", defaultOutputFile, "Output JSON file path")
-	years := flag.Int("years", 11, "Number of years of data to fetch")
+	years := flag.Int("years", 16, "Number of years of data to fetch (default 16 for 15 complete years)")
 	flag.Parse()
 
 	fmt.Println("Fetching market data from Yahoo Finance...")

@@ -2,7 +2,9 @@
   import { getMarketYears, getMarketAverages, getLastUpdated } from '../lib/marketData';
 
   const years = getMarketYears();
-  const averages = getMarketAverages();
+  const avg5y = getMarketAverages(5);
+  const avg10y = getMarketAverages(10);
+  const avg15y = getMarketAverages(15);
   const lastUpdated = getLastUpdated();
 
   function formatPercent(value: number): string {
@@ -38,13 +40,31 @@
           </tr>
         {/each}
         <tr class="avg-row">
-          <td class="font-mono text-light-cyan dark:text-monokai-cyan">MRKT Avg</td>
-          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(averages.inflation)}</td>
-          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(averages.voo)}</td>
-          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(averages.qqq)}</td>
-          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(averages.vti)}</td>
-          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(averages.bnd)}</td>
-          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(averages.mix6040)}</td>
+          <td class="font-mono text-light-cyan dark:text-monokai-cyan">MRKT Avg (5y)</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg5y.inflation)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg5y.voo)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg5y.qqq)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg5y.vti)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg5y.bnd)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg5y.mix6040)}</td>
+        </tr>
+        <tr class="avg-row">
+          <td class="font-mono text-light-cyan dark:text-monokai-cyan">MRKT Avg (10y)</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg10y.inflation)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg10y.voo)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg10y.qqq)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg10y.vti)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg10y.bnd)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg10y.mix6040)}</td>
+        </tr>
+        <tr class="avg-row">
+          <td class="font-mono text-light-cyan dark:text-monokai-cyan">MRKT Avg (15y)</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg15y.inflation)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg15y.voo)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg15y.qqq)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg15y.vti)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg15y.bnd)}</td>
+          <td class="text-right font-mono text-light-cyan dark:text-monokai-cyan">{formatPercent(avg15y.mix6040)}</td>
         </tr>
       </tbody>
     </table>

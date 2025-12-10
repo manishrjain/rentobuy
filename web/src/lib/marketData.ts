@@ -46,17 +46,18 @@ export function getMarketYears(): MarketYearData[] {
   });
 }
 
-export function getMarketAverages(): MarketAverages {
+export function getMarketAverages(numYears: number = 15): MarketAverages {
   const currentYear = new Date().getFullYear();
   const years = Object.keys(marketData.voo);
 
-  let vooSum = 0, qqqSum = 0, vtiSum = 0, bndSum = 0;
+  let vooSum = 0, qqqSum = 0, vtiSum = 0, bndSum = 0, inflationSum = 0;
   let count = 0;
+  let inflationCount = 0;
 
   for (const year of years) {
     const yearInt = parseInt(year, 10);
-    // Only include complete years (not current year)
-    if (yearInt < currentYear) {
+    // Only include complete years (not current year) from last numYears years
+    if (yearInt >= currentYear - numYears && yearInt < currentYear) {
       const hasAll =
         marketData.voo[year] !== undefined &&
         marketData.qqq[year] !== undefined &&
@@ -70,6 +71,11 @@ export function getMarketAverages(): MarketAverages {
         bndSum += marketData.bnd[year];
         count++;
       }
+
+      if (marketData.inflation?.[year] !== undefined) {
+        inflationSum += marketData.inflation[year];
+        inflationCount++;
+      }
     }
   }
 
@@ -82,7 +88,7 @@ export function getMarketAverages(): MarketAverages {
   const vti = vtiSum / count;
   const bnd = bndSum / count;
   const mix6040 = vti * 0.6 + bnd * 0.4;
-  const inflation = marketData.inflation_average || 0;
+  const inflation = inflationCount > 0 ? inflationSum / inflationCount : (marketData.inflation_average || 0);
 
   return { voo, qqq, vti, bnd, mix6040, inflation };
 }
