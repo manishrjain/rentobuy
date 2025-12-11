@@ -1,4 +1,4 @@
-export type ScenarioType = 'buy_vs_rent' | 'sell_vs_keep';
+export type ScenarioType = 'buy_vs_rent' | 'sell_vs_keep' | 'payoff_vs_invest';
 
 export interface CalculatorInputs {
   // Scenario selection
@@ -26,6 +26,7 @@ export interface CalculatorInputs {
   payoffBalance?: number; // Only for sell_vs_keep with refinance
   closingCosts?: number; // Only for sell_vs_keep with refinance
   mortgageInterestDeduction: number; // Effective tax rate for mortgage interest deduction (0 to skip)
+  extraMonthlyPayment?: number; // Only for payoff_vs_invest scenario
 
   // Renting
   rentDeposit: number;
@@ -109,6 +110,27 @@ export interface KeepExpensesRow {
   netPosition: number;
 }
 
+export interface PayoffVsInvestRow {
+  period: string;
+  payoffLoanBalance: number;
+  payoffInvestmentValue: number;
+  payoffWealth: number; // Investment - Loan Balance
+  investLoanBalance: number;
+  investInvestmentValue: number;
+  investWealth: number; // Investment - Loan Balance
+  difference: number; // payoffWealth - investWealth
+}
+
+export interface PayoffBreakdownRow {
+  period: string;
+  payoffEffPayment: number; // Cumulative effective payment in PAYOFF path
+  investEffPayment: number; // Cumulative effective payment in INVEST path
+  paymentDiff: number; // PAYOFF - INVEST (extra paid by PAYOFF path)
+  amountInvested: number; // Cumulative contributions to investment (after loan payoff)
+  investmentReturns: number; // Returns earned on investment
+  investmentValue: number; // Total investment value
+}
+
 export interface CalculationResults {
   // Common arrays for calculations
   monthlyBuyingCosts: number[];
@@ -129,4 +151,8 @@ export interface CalculationResults {
   comparisonTable?: ComparisonRow[];
   sellVsKeepTable?: SellVsKeepRow[];
   keepExpensesTable?: KeepExpensesRow[];
+  payoffVsInvestTable?: PayoffVsInvestRow[];
+  payoffAmortizationTable?: AmortizationRow[];
+  investAmortizationTable?: AmortizationRow[];
+  payoffBreakdownTable?: PayoffBreakdownRow[];
 }

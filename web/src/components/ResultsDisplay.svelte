@@ -160,12 +160,86 @@
     };
   }) ?? [];
 
+  // Compute yearly payoff amortization values
+  $: yearlyPayoffAmortizationData = results.payoffAmortizationTable?.map((row, index) => {
+    if (index === 0) {
+      return {
+        ...row,
+        principalPaid: 0,
+        interestPaid: 0,
+        taxDeduction: 0,
+        effectiveInterest: 0,
+        effectiveLoanPayment: 0,
+      };
+    }
+    const prevRow = results.payoffAmortizationTable![index - 1];
+    return {
+      ...row,
+      principalPaid: row.principalPaid - prevRow.principalPaid,
+      interestPaid: row.interestPaid - prevRow.interestPaid,
+      taxDeduction: row.taxDeduction - prevRow.taxDeduction,
+      effectiveInterest: row.effectiveInterest - prevRow.effectiveInterest,
+      effectiveLoanPayment: row.effectiveLoanPayment - prevRow.effectiveLoanPayment,
+    };
+  }) ?? [];
+
+  // Compute yearly invest amortization values
+  $: yearlyInvestAmortizationData = results.investAmortizationTable?.map((row, index) => {
+    if (index === 0) {
+      return {
+        ...row,
+        principalPaid: 0,
+        interestPaid: 0,
+        taxDeduction: 0,
+        effectiveInterest: 0,
+        effectiveLoanPayment: 0,
+      };
+    }
+    const prevRow = results.investAmortizationTable![index - 1];
+    return {
+      ...row,
+      principalPaid: row.principalPaid - prevRow.principalPaid,
+      interestPaid: row.interestPaid - prevRow.interestPaid,
+      taxDeduction: row.taxDeduction - prevRow.taxDeduction,
+      effectiveInterest: row.effectiveInterest - prevRow.effectiveInterest,
+      effectiveLoanPayment: row.effectiveLoanPayment - prevRow.effectiveLoanPayment,
+    };
+  }) ?? [];
+
+  // Compute yearly payoff breakdown values
+  $: yearlyPayoffBreakdownData = results.payoffBreakdownTable?.map((row, index) => {
+    if (index === 0) {
+      return {
+        ...row,
+        payoffEffPayment: 0,
+        investEffPayment: 0,
+        paymentDiff: 0,
+        amountInvested: 0,
+        investmentReturns: 0,
+        investmentValue: 0,
+      };
+    }
+    const prevRow = results.payoffBreakdownTable![index - 1];
+    return {
+      ...row,
+      payoffEffPayment: row.payoffEffPayment - prevRow.payoffEffPayment,
+      investEffPayment: row.investEffPayment - prevRow.investEffPayment,
+      paymentDiff: row.paymentDiff - prevRow.paymentDiff,
+      amountInvested: row.amountInvested - prevRow.amountInvested,
+      investmentReturns: row.investmentReturns - prevRow.investmentReturns,
+      investmentValue: row.investmentValue - prevRow.investmentValue,
+    };
+  }) ?? [];
+
   // Display data based on view mode
   $: amortizationDisplayData = viewMode === 'cumulative' ? results.amortizationTable : yearlyAmortizationData;
   $: expenditureDisplayData = viewMode === 'cumulative' ? results.expenditureTable : yearlyExpenditureData;
   $: saleProceedsDisplayData = viewMode === 'cumulative' ? results.saleProceedsTable : yearlySaleProceedsData;
   $: comparisonDisplayData = viewMode === 'cumulative' ? results.comparisonTable : yearlyComparisonData;
   $: keepExpensesDisplayData = viewMode === 'cumulative' ? results.keepExpensesTable : yearlyKeepExpensesData;
+  $: payoffAmortizationDisplayData = viewMode === 'cumulative' ? results.payoffAmortizationTable : yearlyPayoffAmortizationData;
+  $: investAmortizationDisplayData = viewMode === 'cumulative' ? results.investAmortizationTable : yearlyInvestAmortizationData;
+  $: payoffBreakdownDisplayData = viewMode === 'cumulative' ? results.payoffBreakdownTable : yearlyPayoffBreakdownData;
 </script>
 
 <div id="results-content" class="space-y-8">
@@ -177,7 +251,7 @@
     <div class="mb-6">
       <h3 class="text-light-orange dark:text-monokai-orange font-bold mb-2">SCENARIO</h3>
       <div class="ml-4 space-y-1 text-sm">
-        <div><span class="text-light-cyan dark:text-monokai-cyan">Analysis Type:</span> {inputs.scenario === 'buy_vs_rent' ? 'Buy vs Rent' : 'Sell vs Keep'}</div>
+        <div><span class="text-light-cyan dark:text-monokai-cyan">Analysis Type:</span> {inputs.scenario === 'buy_vs_rent' ? 'Buy vs Rent' : inputs.scenario === 'sell_vs_keep' ? 'Sell vs Keep' : 'Payoff vs Invest'}</div>
       </div>
     </div>
 
@@ -245,7 +319,7 @@
           </div>
         {/if}
       </div>
-    {:else}
+    {:else if inputs.scenario === 'sell_vs_keep'}
       <!-- SELL VS KEEP: ASSET Section -->
       <div class="mb-6">
         <h3 class="text-light-orange dark:text-monokai-orange font-bold mb-2">ASSET</h3>
@@ -312,6 +386,22 @@
           <div><span class="text-light-cyan dark:text-monokai-cyan">Staging/Selling Costs:</span> {formatCurrency(inputs.stagingCosts, true)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Tax-Free Gains Limit:</span> {formatTaxFreeLimits(inputs.taxFreeLimits)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Capital Gains Tax Rate:</span> {formatPercent(inputs.capitalGainsTax)}</div>
+        </div>
+      </div>
+    {:else}
+      <!-- PAYOFF VS INVEST: LOAN Section -->
+      <div class="mb-6">
+        <h3 class="text-light-orange dark:text-monokai-orange font-bold mb-2">LOAN</h3>
+        <div class="ml-4 space-y-1 text-sm">
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Original Loan Amount:</span> {formatCurrency(inputs.loanAmount, true)}</div>
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Remaining Loan Balance:</span> {formatCurrency(effectiveLoanValues.effectiveLoanAmount, true)}</div>
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Loan Rate:</span> {formatPercent(inputs.loanRate)}</div>
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Remaining Loan Term:</span> {formatDuration(inputs.remainingLoanTerm || inputs.loanTerm)}</div>
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Payment:</span> {formatCurrency(effectiveLoanValues.monthlyLoanPayment, true)}</div>
+          {#if inputs.mortgageInterestDeduction > 0}
+            <div><span class="text-light-cyan dark:text-monokai-cyan">Mortgage Interest Deduction:</span> {formatPercent(inputs.mortgageInterestDeduction)}</div>
+          {/if}
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Extra Monthly Payment:</span> {formatCurrency(inputs.extraMonthlyPayment || 0, true)}</div>
         </div>
       </div>
     {/if}
@@ -500,7 +590,8 @@
     </section>
   {/if}
 
-  <!-- KEEP Sale Proceeds (for sell_vs_keep) or Sale Proceeds (for buy_vs_rent) -->
+  <!-- KEEP Sale Proceeds (for sell_vs_keep) or Sale Proceeds (for buy_vs_rent) - not shown for payoff_vs_invest -->
+  {#if inputs.scenario !== 'payoff_vs_invest'}
   <section id="keep-sale-proceeds" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
     <h2 class="section-title">{inputs.scenario === 'sell_vs_keep' ? 'KEEP Analysis: Future Sale Proceeds' : 'BUY Analysis: Future Asset Value'} <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">Cumulative</span></h2>
     <div class="table-container">
@@ -563,6 +654,7 @@
       </div>
     </div>
   </section>
+  {/if}
 
   <!-- Comparison Table (BUY vs RENT) -->
   {#if results.comparisonTable}
@@ -658,6 +750,192 @@
           <span class="text-light-cyan dark:text-monokai-cyan">KEEP Invest Position ②</span><span>= Investment value from income minus real out-of-pocket costs (from KEEP Analysis: Invest Position).</span>
           <span class="text-light-cyan dark:text-monokai-cyan">KEEP Net Worth</span><span>= KEEP Sale Proceeds + KEEP Invest Position.</span>
           <span class="text-light-cyan dark:text-monokai-cyan">SELL - KEEP</span><span>= Difference in net worth (positive = selling wins, negative = keeping wins).</span>
+        </div>
+      </div>
+    </section>
+  {/if}
+
+  <!-- Payoff vs Invest Comparison -->
+  <!-- Payoff Amortization Table -->
+  {#if results.payoffAmortizationTable}
+    <section id="payoff-amortization" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
+      <h2 class="section-title">PAYOFF Path: Loan Amortization <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">{viewMode === 'cumulative' ? 'Cumulative' : 'Yearly'}</span></h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th class="text-right">Principal Paid</th>
+              <th class="text-right">Interest Paid</th>
+              <th class="text-right">Tax Deduction</th>
+              <th class="text-right">Effective Interest</th>
+              <th class="text-right">Effective Payment ⑦</th>
+              <th class="text-right">Loan Balance ①</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each payoffAmortizationDisplayData as row}
+              <tr>
+                <td class="font-mono">{row.period}</td>
+                <td class="text-right font-mono">{formatCurrency(row.principalPaid)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.interestPaid)}</td>
+                <td class="text-right font-mono text-light-green dark:text-monokai-green">{formatCurrency(row.taxDeduction)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.effectiveInterest)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.effectiveLoanPayment)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.loanBalance)}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <div class="help-text mt-2">
+        <p>Accelerated payoff with extra ${formatCurrency(inputs.extraMonthlyPayment || 0, true)}/month toward principal.</p>
+      </div>
+    </section>
+  {/if}
+
+  <!-- Invest Amortization Table -->
+  {#if results.investAmortizationTable}
+    <section id="invest-amortization" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
+      <h2 class="section-title">INVEST Path: Loan Amortization <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-green dark:bg-monokai-green text-white">{viewMode === 'cumulative' ? 'Cumulative' : 'Yearly'}</span></h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th class="text-right">Principal Paid</th>
+              <th class="text-right">Interest Paid</th>
+              <th class="text-right">Tax Deduction</th>
+              <th class="text-right">Effective Interest</th>
+              <th class="text-right">Effective Payment ⑧</th>
+              <th class="text-right">Loan Balance ②</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each investAmortizationDisplayData as row}
+              <tr>
+                <td class="font-mono">{row.period}</td>
+                <td class="text-right font-mono">{formatCurrency(row.principalPaid)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.interestPaid)}</td>
+                <td class="text-right font-mono text-light-green dark:text-monokai-green">{formatCurrency(row.taxDeduction)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.effectiveInterest)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.effectiveLoanPayment)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.loanBalance)}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <div class="help-text mt-2">
+        <p>Regular payments only. Extra ${formatCurrency(inputs.extraMonthlyPayment || 0, true)}/month goes to investments instead.</p>
+      </div>
+    </section>
+  {/if}
+
+  <!-- Payoff Breakdown Table -->
+  {#if results.payoffBreakdownTable}
+    <section id="payoff-breakdown" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
+      <h2 class="section-title">PAYOFF Path: Investment Breakdown <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">{viewMode === 'cumulative' ? 'Cumulative' : 'Yearly'}</span></h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th class="text-right"><a href="#payoff-amortization" class="hover:underline cursor-pointer" on:click={(e) => scrollToSection(e, 'payoff-amortization')}><span class="text-light-pink dark:text-monokai-pink">PAYOFF</span> Eff. Pmt ⑦</a></th>
+              <th class="text-right"><a href="#invest-amortization" class="hover:underline cursor-pointer" on:click={(e) => scrollToSection(e, 'invest-amortization')}><span class="text-light-green dark:text-monokai-green">INVEST</span> Eff. Pmt ⑧</a></th>
+              <th class="text-right"><span class="text-light-green dark:text-monokai-green">INV</span> - <span class="text-light-pink dark:text-monokai-pink">PAY</span></th>
+              <th class="text-right">Amt Invested ⑤</th>
+              <th class="text-right">Returns</th>
+              <th class="text-right">Invest Value ⑥</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each payoffBreakdownDisplayData as row}
+              <tr>
+                <td class="font-mono">{row.period}</td>
+                <td class="text-right font-mono">{formatCurrency(row.payoffEffPayment)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.investEffPayment)}</td>
+                <td class="text-right font-mono" class:text-light-pink={row.paymentDiff < 0} class:dark:text-monokai-pink={row.paymentDiff < 0}>{formatCurrency(row.paymentDiff)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.amountInvested)}</td>
+                <td class="text-right font-mono text-light-green dark:text-monokai-green">{formatCurrency(row.investmentReturns)}</td>
+                <td class="text-right font-mono" class:text-light-pink={row.investmentValue < 0} class:dark:text-monokai-pink={row.investmentValue < 0} class:text-light-green={row.investmentValue > 0} class:dark:text-monokai-green={row.investmentValue > 0}>{formatCurrency(row.investmentValue)}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <div class="help-text mt-2">
+        {#if viewMode === 'cumulative'}
+          <p>PAYOFF starts with a deficit (negative) from paying more. After loan payoff, contributions first zero out the deficit.</p>
+          <div class="grid grid-cols-[auto_1fr] gap-x-2">
+            <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Eff. Pmt</span><span>= Cumulative effective payment (regular + extra - tax savings). Higher = more out of pocket.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">INVEST Eff. Pmt</span><span>= Cumulative effective payment (regular - tax savings). Lower = less out of pocket.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">INV - PAY</span><span>= Negative = PAYOFF pays more out of pocket (extra goes to loan principal).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Amt Invested ⑤</span><span>= Cumulative contributions after loan payoff ({formatCurrency((inputs.extraMonthlyPayment || 0) + effectiveLoanValues.monthlyLoanPayment, true)}/month).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Returns</span><span>= Investment returns at {formatPercent(inputs.investmentReturnRate)} annual rate (only when position is positive).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Invest Value ⑥</span><span>= Net position. Negative = deficit from extra payments. Positive = investment value after zeroing out deficit.</span>
+          </div>
+        {:else}
+          <p>Shows yearly changes in payments and investment position.</p>
+          <div class="grid grid-cols-[auto_1fr] gap-x-2">
+            <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Eff. Pmt</span><span>= Effective payment for this period (regular + extra - tax savings).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">INVEST Eff. Pmt</span><span>= Effective payment for this period (regular - tax savings).</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">INV - PAY</span><span>= Difference in effective payments for this period.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Amt Invested</span><span>= Contributions to investment in this period.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Returns</span><span>= Investment returns earned in this period.</span>
+            <span class="text-light-cyan dark:text-monokai-cyan">Invest Value</span><span>= Change in net position for this period.</span>
+          </div>
+        {/if}
+      </div>
+    </section>
+  {/if}
+
+  <!-- Payoff vs Invest Comparison -->
+  {#if results.payoffVsInvestTable}
+    <section class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
+      <h2 class="section-title">Wealth Comparison: PAYOFF vs INVEST <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">Cumulative</span></h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th class="text-right"><a href="#payoff-amortization" class="hover:underline cursor-pointer" on:click={(e) => scrollToSection(e, 'payoff-amortization')}><span class="text-light-pink dark:text-monokai-pink">PAYOFF</span> Loan Bal ①</a></th>
+              <th class="text-right"><a href="#payoff-breakdown" class="hover:underline cursor-pointer" on:click={(e) => scrollToSection(e, 'payoff-breakdown')}><span class="text-light-pink dark:text-monokai-pink">PAYOFF</span> Invest ⑥</a></th>
+              <th class="text-right"><span class="text-light-pink dark:text-monokai-pink">PAYOFF Wealth</span></th>
+              <th class="text-right"><a href="#invest-amortization" class="hover:underline cursor-pointer" on:click={(e) => scrollToSection(e, 'invest-amortization')}><span class="text-light-green dark:text-monokai-green">INVEST</span> Loan Bal ②</a></th>
+              <th class="text-right"><span class="text-light-green dark:text-monokai-green">INVEST</span> Invest</th>
+              <th class="text-right"><span class="text-light-green dark:text-monokai-green">INVEST Wealth</span></th>
+              <th class="text-right"><span class="text-light-pink dark:text-monokai-pink">PAYOFF</span> - <span class="text-light-green dark:text-monokai-green">INVEST</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each results.payoffVsInvestTable as row}
+              <tr>
+                <td class="font-mono">{row.period}</td>
+                <td class="text-right font-mono">{formatCurrency(row.payoffLoanBalance)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.payoffInvestmentValue)}</td>
+                <td class="text-right font-mono text-light-pink dark:text-monokai-pink">{formatCurrency(row.payoffWealth)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.investLoanBalance)}</td>
+                <td class="text-right font-mono">{formatCurrency(row.investInvestmentValue)}</td>
+                <td class="text-right font-mono text-light-green dark:text-monokai-green">{formatCurrency(row.investWealth)}</td>
+                <td class="text-right font-mono" class:text-light-pink={row.difference > 0} class:dark:text-monokai-pink={row.difference > 0} class:text-light-green={row.difference < 0} class:dark:text-monokai-green={row.difference < 0}>
+                  {formatCurrency(row.difference)}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <div class="help-text mt-2">
+        <p>Note: Positive PAYOFF - INVEST means paying extra wins, negative means investing wins.</p>
+        <div class="grid grid-cols-[auto_1fr] gap-x-2">
+          <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Loan Bal</span><span>= Remaining loan balance with accelerated payoff (extra payments go to principal).</span>
+          <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Invest</span><span>= Investment value after loan is paid off (freed-up payments get invested at {formatPercent(inputs.investmentReturnRate)} return).</span>
+          <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Wealth</span><span>= Investment - Loan Balance (what you'd have if you sold the asset and paid off the loan).</span>
+          <span class="text-light-cyan dark:text-monokai-cyan">INVEST Loan Bal</span><span>= Remaining loan balance with regular payments only.</span>
+          <span class="text-light-cyan dark:text-monokai-cyan">INVEST Invest</span><span>= Investment value from investing extra payment monthly at {formatPercent(inputs.investmentReturnRate)} return.</span>
+          <span class="text-light-cyan dark:text-monokai-cyan">INVEST Wealth</span><span>= Investment - Loan Balance (what you'd have if you sold the asset and paid off the loan).</span>
+          <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF - INVEST</span><span>= Difference in wealth (positive = paying extra wins, negative = investing wins).</span>
         </div>
       </div>
     </section>

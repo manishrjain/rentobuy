@@ -484,7 +484,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
         difference: rentingNetWorth - buyingNetWorth,
       };
     });
-  } else {
+  } else if (inputs.scenario === 'sell_vs_keep') {
     // sell_vs_keep scenario
 
     // Keep Expenses Breakdown table
@@ -635,6 +635,249 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
         keepNetPosition,
         keepNetWorth: keepNetWorth,
         difference: keepNetWorth - sellNetWorth,
+      };
+    });
+  } else if (inputs.scenario === 'payoff_vs_invest') {
+    // payoff_vs_invest scenario
+    const extraPayment = inputs.extraMonthlyPayment || 0;
+    const monthlyRate = inputs.loanRate / 100 / 12;
+    const monthlyInvestmentRate = inputs.investmentReturnRate / 100 / 12;
+    const loanValues = getEffectiveLoanValues(inputs);
+    const regularPayment = loanValues.monthlyLoanPayment;
+    const taxRate = inputs.mortgageInterestDeduction / 100;
+
+    // First calculate INVEST path to get effective payments for comparison
+    const maxMonths = 360;
+    const investLoanBalances: number[] = [...costs.remainingLoanBalance];
+    const investInvestmentValues: number[] = new Array(maxMonths);
+    const investCumulativeEffectivePayment: number[] = new Array(maxMonths);
+    const investCumulativeContributions: number[] = new Array(maxMonths);
+    const investMonthlyEffectivePayment: number[] = new Array(maxMonths);
+
+    let investInvestment = 0;
+    let investBalance = loanValues.effectiveLoanAmount;
+    let investTotalEffectivePayment = 0;
+    let investTotalContributions = 0;
+    const loanTermMonths = inputs.remainingLoanTerm || inputs.loanTerm;
+
+    for (let i = 0; i < maxMonths; i++) {
+      if (i < loanTermMonths && investBalance > 0) {
+        // Still paying loan - invest extra only (tax savings reflected in effective payment)
+        const interestPayment = investBalance * monthlyRate;
+        const taxSavings = interestPayment * taxRate;
+        const effectivePayment = regularPayment - taxSavings;
+
+        investInvestment += extraPayment;
+        investTotalEffectivePayment += effectivePayment;
+        investTotalContributions += extraPayment;
+        investMonthlyEffectivePayment[i] = effectivePayment;
+
+        // Update loan balance
+        const principalPayment = regularPayment - interestPayment;
+        investBalance = Math.max(0, investBalance - principalPayment);
+      } else {
+        // Loan paid off - invest extra only
+        investInvestment += extraPayment;
+        investTotalContributions += extraPayment;
+        investMonthlyEffectivePayment[i] = 0;
+      }
+
+      // Compound investment
+      investInvestment *= 1 + monthlyInvestmentRate;
+      investInvestmentValues[i] = investInvestment;
+      investCumulativeEffectivePayment[i] = investTotalEffectivePayment;
+      investCumulativeContributions[i] = investTotalContributions;
+    }
+
+    // Now calculate PAYOFF path with deficit tracking
+    const payoffLoanBalances: number[] = new Array(maxMonths);
+    const payoffInvestmentValues: number[] = new Array(maxMonths);
+    const payoffCumulativePrincipal: number[] = new Array(maxMonths);
+    const payoffCumulativeInterest: number[] = new Array(maxMonths);
+    const payoffCumulativeEffectivePayment: number[] = new Array(maxMonths);
+    const payoffCumulativeContributions: number[] = new Array(maxMonths);
+    const payoffCumulativeReturns: number[] = new Array(maxMonths);
+
+    let payoffBalance = loanValues.effectiveLoanAmount;
+    let payoffNetPosition = 0; // Can be negative (deficit) or positive (investment)
+    let loanPaidOff = false;
+    let payoffTotalPrincipal = 0;
+    let payoffTotalInterest = 0;
+    let payoffTotalEffectivePayment = 0;
+    let payoffTotalContributions = 0;
+    let payoffTotalReturns = 0;
+
+    for (let i = 0; i < maxMonths; i++) {
+      if (!loanPaidOff && payoffBalance > 0) {
+        // Still paying off loan with extra payments
+        const interestPayment = payoffBalance * monthlyRate;
+        const regularPrincipal = regularPayment - interestPayment;
+        const desiredPrincipalPayment = regularPrincipal + extraPayment;
+        // Cap principal payment at remaining balance (final month adjustment)
+        const actualPrincipalPayment = Math.min(desiredPrincipalPayment, payoffBalance);
+        const taxSavings = interestPayment * taxRate;
+        // Effective payment = interest + actual principal - tax savings
+        const payoffEffPayment = interestPayment + actualPrincipalPayment - taxSavings;
+        const investEffPayment = investMonthlyEffectivePayment[i];
+
+        // PAYOFF pays more, so net position decreases (becomes more negative)
+        const deficit = payoffEffPayment - investEffPayment;
+        payoffNetPosition -= deficit;
+
+        payoffTotalInterest += interestPayment;
+        payoffTotalPrincipal += actualPrincipalPayment;
+        payoffTotalEffectivePayment += payoffEffPayment;
+        payoffBalance = payoffBalance - actualPrincipalPayment;
+
+        if (payoffBalance <= 0) {
+          loanPaidOff = true;
+          payoffBalance = 0;
+        }
+      } else {
+        // Loan paid off - contribute to investment
+        const contribution = regularPayment + extraPayment;
+        payoffNetPosition += contribution;
+        payoffTotalContributions += contribution;
+      }
+
+      // Compound only if positive (no returns on negative position)
+      if (payoffNetPosition > 0) {
+        const monthlyReturn = payoffNetPosition * monthlyInvestmentRate;
+        payoffTotalReturns += monthlyReturn;
+        payoffNetPosition += monthlyReturn;
+      }
+
+      payoffLoanBalances[i] = payoffBalance;
+      payoffInvestmentValues[i] = payoffNetPosition;
+      payoffCumulativePrincipal[i] = payoffTotalPrincipal;
+      payoffCumulativeInterest[i] = payoffTotalInterest;
+      payoffCumulativeEffectivePayment[i] = payoffTotalEffectivePayment;
+      payoffCumulativeContributions[i] = payoffTotalContributions;
+      payoffCumulativeReturns[i] = payoffTotalReturns;
+    }
+
+    // Build payoff amortization table
+    results.payoffAmortizationTable = periods.map((period) => {
+      if (period.months === 0) {
+        return {
+          period: 'PAYOFF ' + period.label,
+          principalPaid: 0,
+          interestPaid: 0,
+          taxDeduction: 0,
+          effectiveInterest: 0,
+          effectiveLoanPayment: 0,
+          loanBalance: loanValues.effectiveLoanAmount,
+        };
+      }
+      const monthIndex = Math.min(period.months - 1, maxMonths - 1);
+      const principalPaid = payoffCumulativePrincipal[monthIndex];
+      const interestPaid = payoffCumulativeInterest[monthIndex];
+      const taxDeduction = interestPaid * taxRate;
+      return {
+        period: 'PAYOFF ' + period.label,
+        principalPaid,
+        interestPaid,
+        taxDeduction,
+        effectiveInterest: interestPaid - taxDeduction,
+        effectiveLoanPayment: payoffCumulativeEffectivePayment[monthIndex],
+        loanBalance: payoffLoanBalances[monthIndex],
+      };
+    });
+
+    // Build invest amortization table (regular payments)
+    results.investAmortizationTable = periods.map((period) => {
+      if (period.months === 0) {
+        return {
+          period: 'INVEST ' + period.label,
+          principalPaid: 0,
+          interestPaid: 0,
+          taxDeduction: 0,
+          effectiveInterest: 0,
+          effectiveLoanPayment: 0,
+          loanBalance: loanValues.effectiveLoanAmount,
+        };
+      }
+      const monthIndex = Math.min(period.months - 1, maxMonths - 1);
+      const principalPaid = costs.cumulativePrincipalPaid[monthIndex];
+      const interestPaid = costs.cumulativeInterestPaid[monthIndex];
+      const taxDeduction = interestPaid * taxRate;
+      return {
+        period: 'INVEST ' + period.label,
+        principalPaid,
+        interestPaid,
+        taxDeduction,
+        effectiveInterest: interestPaid - taxDeduction,
+        effectiveLoanPayment: investCumulativeEffectivePayment[monthIndex],
+        loanBalance: investLoanBalances[monthIndex],
+      };
+    });
+
+    // Build comparison table
+    results.payoffVsInvestTable = periods.map((period) => {
+      if (period.months === 0) {
+        return {
+          period: 'NET ' + period.label,
+          payoffLoanBalance: loanValues.effectiveLoanAmount,
+          payoffInvestmentValue: 0,
+          payoffWealth: -loanValues.effectiveLoanAmount,
+          investLoanBalance: loanValues.effectiveLoanAmount,
+          investInvestmentValue: 0,
+          investWealth: -loanValues.effectiveLoanAmount,
+          difference: 0,
+        };
+      }
+
+      const monthIndex = Math.min(period.months - 1, maxMonths - 1);
+
+      const payoffLoanBal = payoffLoanBalances[monthIndex];
+      const payoffInvest = payoffInvestmentValues[monthIndex];
+      const payoffWealth = payoffInvest - payoffLoanBal;
+
+      const investLoanBal = investLoanBalances[monthIndex];
+      const investInvest = investInvestmentValues[monthIndex];
+      const investWealth = investInvest - investLoanBal;
+
+      return {
+        period: 'NET ' + period.label,
+        payoffLoanBalance: payoffLoanBal,
+        payoffInvestmentValue: payoffInvest,
+        payoffWealth,
+        investLoanBalance: investLoanBal,
+        investInvestmentValue: investInvest,
+        investWealth,
+        difference: payoffWealth - investWealth,
+      };
+    });
+
+    // Build payoff breakdown table
+    results.payoffBreakdownTable = periods.map((period) => {
+      if (period.months === 0) {
+        return {
+          period: period.label,
+          payoffEffPayment: 0,
+          investEffPayment: 0,
+          paymentDiff: 0,
+          amountInvested: 0,
+          investmentReturns: 0,
+          investmentValue: 0,
+        };
+      }
+
+      const monthIndex = Math.min(period.months - 1, maxMonths - 1);
+      const payoffEffPmt = payoffCumulativeEffectivePayment[monthIndex];
+      const investEffPmt = investCumulativeEffectivePayment[monthIndex];
+      const amountInvested = payoffCumulativeContributions[monthIndex];
+      const investmentValue = payoffInvestmentValues[monthIndex];
+      const investmentReturns = payoffCumulativeReturns[monthIndex];
+
+      return {
+        period: period.label,
+        payoffEffPayment: payoffEffPmt,
+        investEffPayment: investEffPmt,
+        paymentDiff: investEffPmt - payoffEffPmt,  // Negative = PAYOFF pays more
+        amountInvested,
+        investmentReturns,
+        investmentValue,
       };
     });
   }
