@@ -656,6 +656,10 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
       payoffRegularPayment = calculateMonthlyPayment(payoffStartingBalance, monthlyRate, loanTermMonths);
     }
 
+    // Calculate mortgage payment savings when PAYOFF has lower payment
+    // This difference should be invested to keep total cash outflow equal between paths
+    const mortgageSavings = Math.max(0, regularPayment - payoffRegularPayment);
+
     // First calculate INVEST path to get effective payments for comparison
     const maxMonths = 360;
     const investLoanBalances: number[] = [...costs.remainingLoanBalance];
@@ -720,7 +724,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
 
     for (let i = 0; i < maxMonths; i++) {
       if (!loanPaidOff && payoffBalance > 0) {
-        // Still paying off loan with extra payments - no investment yet
+        // Still paying off loan with extra payments
         const interestPayment = payoffBalance * monthlyRate;
         const principalFromPayment = payoffRegularPayment - interestPayment;
         const desiredPrincipalPayment = principalFromPayment + extraPayment;
@@ -738,10 +742,22 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
           loanPaidOff = true;
           payoffBalance = 0;
         }
-        // payoffNetPosition stays 0 while paying off loan
+
+        // Invest the mortgage savings (difference between INVEST and PAYOFF payments)
+        // This keeps total cash outflow equal between paths
+        if (mortgageSavings > 0) {
+          payoffNetPosition += mortgageSavings;
+          payoffTotalContributions += mortgageSavings;
+
+          // Compound investment returns
+          const monthlyReturn = payoffNetPosition * monthlyInvestmentRate;
+          payoffTotalReturns += monthlyReturn;
+          payoffNetPosition += monthlyReturn;
+        }
       } else {
-        // Loan paid off - contribute freed-up payments to investment
-        const contribution = payoffRegularPayment + extraPayment;
+        // Loan paid off - invest full freed-up amount (original mortgage + extra)
+        // This matches INVEST path's total monthly budget for fair comparison
+        const contribution = regularPayment + extraPayment;
         payoffNetPosition += contribution;
         payoffTotalContributions += contribution;
 

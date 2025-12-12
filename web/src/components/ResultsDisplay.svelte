@@ -67,6 +67,8 @@
   $: payoffMonthlyPayment = inputs.recalculatePayment && (inputs.extraUpfrontPayment || 0) > 0 && payoffStartingBalance > 0
     ? calculateMonthlyPayment(payoffStartingBalance, monthlyRate, inputs.remainingLoanTerm || inputs.loanTerm)
     : effectiveLoanValues.monthlyLoanPayment;
+  // Mortgage savings = difference invested to keep total cash outflow equal
+  $: mortgageSavings = Math.max(0, effectiveLoanValues.monthlyLoanPayment - payoffMonthlyPayment);
 
   // Compute yearly amortization values from cumulative data
   $: yearlyAmortizationData = results.amortizationTable?.map((row, index) => {
@@ -384,9 +386,7 @@
             <div><span class="text-light-cyan dark:text-monokai-cyan">Recalculate Payment:</span> {inputs.recalculatePayment ? 'Yes' : 'No'}</div>
           {/if}
           <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Payment (INVEST):</span> {formatCurrency(effectiveLoanValues.monthlyLoanPayment, true)}</div>
-          {#if inputs.recalculatePayment && (inputs.extraUpfrontPayment || 0) > 0}
-            <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Payment (PAYOFF):</span> {formatCurrency(payoffMonthlyPayment, true)}</div>
-          {/if}
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Payment (PAYOFF):</span> {formatCurrency(payoffMonthlyPayment, true)}</div>
         </div>
       </div>
     {/if}
@@ -771,7 +771,7 @@
         </table>
       </div>
       <div class="help-text mt-2">
-        <p>Accelerated payoff with extra ${formatCurrency(inputs.extraMonthlyPayment || 0, true)}/month toward principal.</p>
+        <p>Accelerated payoff with extra {formatCurrency(inputs.extraMonthlyPayment || 0, true)}/month toward principal.</p>
       </div>
     </section>
   {/if}
@@ -806,7 +806,7 @@
         </table>
       </div>
       <div class="help-text mt-2">
-        <p>Regular payments only. Extra ${formatCurrency(inputs.extraMonthlyPayment || 0, true)}/month goes to investments instead.</p>
+        <p>Regular payments only. Extra {formatCurrency(inputs.extraMonthlyPayment || 0, true)}/month goes to investments instead.</p>
       </div>
     </section>
   {/if}
@@ -851,7 +851,7 @@
         <p>Note: Positive PAYOFF - INVEST means paying extra wins, negative means investing wins.</p>
         <div class="grid grid-cols-[auto_1fr] gap-x-2">
           <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Loan Bal</span><span>= Remaining loan balance with accelerated payoff (extra payments go to principal).</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Invest</span><span>= After loan payoff, freed-up payments ({formatCurrency(payoffMonthlyPayment, true)} + {formatCurrency(inputs.extraMonthlyPayment || 0, true)}/mo) invested at {formatPercent(inputs.investmentReturnRate)} return.</span>
+          <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Invest</span><span>= {#if mortgageSavings > 0}While paying loan: mortgage savings ({formatCurrency(mortgageSavings, true)}/mo) invested. After payoff: freed-up payments ({formatCurrency(effectiveLoanValues.monthlyLoanPayment, true)} + {formatCurrency(inputs.extraMonthlyPayment || 0, true)}/mo) invested{:else}After loan payoff, freed-up payments ({formatCurrency(payoffMonthlyPayment, true)} + {formatCurrency(inputs.extraMonthlyPayment || 0, true)}/mo) invested{/if} at {formatPercent(inputs.investmentReturnRate)} return.</span>
           <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Wealth</span><span>= Investment - Loan Balance.</span>
           <span class="text-light-cyan dark:text-monokai-cyan">INVEST Loan Bal</span><span>= Remaining loan balance with regular payments only.</span>
           <span class="text-light-cyan dark:text-monokai-cyan">INVEST Invest</span><span>= Investment value from investing extra payment ({formatCurrency(inputs.extraMonthlyPayment || 0, true)}/month) at {formatPercent(inputs.investmentReturnRate)} return.</span>
