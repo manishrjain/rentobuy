@@ -27,6 +27,8 @@ export interface CalculatorInputs {
   closingCosts?: number; // Only for sell_vs_keep with refinance
   mortgageInterestDeduction: number; // Effective tax rate for mortgage interest deduction (0 to skip)
   extraMonthlyPayment?: number; // Only for payoff_vs_invest scenario
+  extraUpfrontPayment?: number; // Only for payoff_vs_invest scenario - one-time lump sum at start
+  recalculatePayment?: boolean; // Only for payoff_vs_invest - recalculate monthly payment after upfront payment
 
   // Renting
   rentDeposit: number;

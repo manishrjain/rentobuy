@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { CalculatorInputs, CalculationResults } from '../types';
   import { formatCurrency as formatCurrencyBase, formatPercent } from '../lib/formatter';
-  import { getEffectiveLoanValues } from '../lib/calculator';
+  import { getEffectiveLoanValues, calculateMonthlyPayment } from '../lib/calculator';
   import MarketDataTable from './MarketDataTable.svelte';
 
   export let inputs: CalculatorInputs;
@@ -60,6 +60,13 @@
   $: downpayment = inputs.purchasePrice - inputs.loanAmount;
   $: effectiveLoanValues = getEffectiveLoanValues(inputs);
   $: showSellingColumns = inputs.scenario === 'sell_vs_keep' || inputs.includeSelling;
+
+  // Calculate payoff monthly payment (may be recalculated based on upfront payment)
+  $: payoffStartingBalance = effectiveLoanValues.effectiveLoanAmount - (inputs.extraUpfrontPayment || 0);
+  $: monthlyRate = inputs.loanRate / 100 / 12;
+  $: payoffMonthlyPayment = inputs.recalculatePayment && (inputs.extraUpfrontPayment || 0) > 0 && payoffStartingBalance > 0
+    ? calculateMonthlyPayment(payoffStartingBalance, monthlyRate, inputs.remainingLoanTerm || inputs.loanTerm)
+    : effectiveLoanValues.monthlyLoanPayment;
 
   // Compute yearly amortization values from cumulative data
   $: yearlyAmortizationData = results.amortizationTable?.map((row, index) => {
@@ -371,8 +378,15 @@
           <div><span class="text-light-cyan dark:text-monokai-cyan">Remaining Loan Balance:</span> {formatCurrency(effectiveLoanValues.effectiveLoanAmount, true)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Loan Rate:</span> {formatPercent(inputs.loanRate)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Remaining Loan Term:</span> {formatDuration(inputs.remainingLoanTerm || inputs.loanTerm)}</div>
-          <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Payment:</span> {formatCurrency(effectiveLoanValues.monthlyLoanPayment, true)}</div>
           <div><span class="text-light-cyan dark:text-monokai-cyan">Extra Monthly Payment:</span> {formatCurrency(inputs.extraMonthlyPayment || 0, true)}</div>
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Extra Upfront Payment:</span> {formatCurrency(inputs.extraUpfrontPayment || 0, true)}</div>
+          {#if (inputs.extraUpfrontPayment || 0) > 0}
+            <div><span class="text-light-cyan dark:text-monokai-cyan">Recalculate Payment:</span> {inputs.recalculatePayment ? 'Yes' : 'No'}</div>
+          {/if}
+          <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Payment (INVEST):</span> {formatCurrency(effectiveLoanValues.monthlyLoanPayment, true)}</div>
+          {#if inputs.recalculatePayment && (inputs.extraUpfrontPayment || 0) > 0}
+            <div><span class="text-light-cyan dark:text-monokai-cyan">Monthly Payment (PAYOFF):</span> {formatCurrency(payoffMonthlyPayment, true)}</div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -731,6 +745,7 @@
   {#if results.payoffAmortizationTable}
     <section id="payoff-amortization" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
       <h2 class="section-title">PAYOFF Path: Loan Amortization <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">{viewMode === 'cumulative' ? 'Cumulative' : 'Yearly'}</span></h2>
+      <p class="text-sm text-light-text-muted dark:text-monokai-text-muted mb-2">Monthly Payment: {formatCurrency(payoffMonthlyPayment, true)}{#if inputs.extraMonthlyPayment}&nbsp;+ Extra: {formatCurrency(inputs.extraMonthlyPayment, true)}/mo{/if}</p>
       <div class="table-container">
         <table class="data-table">
           <thead>
@@ -765,6 +780,7 @@
   {#if results.investAmortizationTable}
     <section id="invest-amortization" class="bg-light-bg-light dark:bg-monokai-bg-light p-6 rounded-lg">
       <h2 class="section-title">INVEST Path: Loan Amortization <span class="text-xs font-normal px-1.5 py-0.5 rounded bg-light-pink dark:bg-monokai-pink text-white">{viewMode === 'cumulative' ? 'Cumulative' : 'Yearly'}</span></h2>
+      <p class="text-sm text-light-text-muted dark:text-monokai-text-muted mb-2">Monthly Payment: {formatCurrency(effectiveLoanValues.monthlyLoanPayment, true)}{#if inputs.extraMonthlyPayment}&nbsp;(Extra: {formatCurrency(inputs.extraMonthlyPayment, true)}/mo goes to investments){/if}</p>
       <div class="table-container">
         <table class="data-table">
           <thead>
@@ -835,7 +851,7 @@
         <p>Note: Positive PAYOFF - INVEST means paying extra wins, negative means investing wins.</p>
         <div class="grid grid-cols-[auto_1fr] gap-x-2">
           <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Loan Bal</span><span>= Remaining loan balance with accelerated payoff (extra payments go to principal).</span>
-          <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Invest</span><span>= After loan payoff, freed-up payments ({formatCurrency(effectiveLoanValues.monthlyLoanPayment, true)} + {formatCurrency(inputs.extraMonthlyPayment || 0, true)}/mo) invested at {formatPercent(inputs.investmentReturnRate)} return.</span>
+          <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Invest</span><span>= After loan payoff, freed-up payments ({formatCurrency(payoffMonthlyPayment, true)} + {formatCurrency(inputs.extraMonthlyPayment || 0, true)}/mo) invested at {formatPercent(inputs.investmentReturnRate)} return.</span>
           <span class="text-light-cyan dark:text-monokai-cyan">PAYOFF Wealth</span><span>= Investment - Loan Balance.</span>
           <span class="text-light-cyan dark:text-monokai-cyan">INVEST Loan Bal</span><span>= Remaining loan balance with regular payments only.</span>
           <span class="text-light-cyan dark:text-monokai-cyan">INVEST Invest</span><span>= Investment value from investing extra payment ({formatCurrency(inputs.extraMonthlyPayment || 0, true)}/month) at {formatPercent(inputs.investmentReturnRate)} return.</span>

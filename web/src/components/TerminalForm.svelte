@@ -55,6 +55,8 @@
       { key: 'closingCosts', label: 'Refinance Closing Costs', help: 'Closing costs for refinance (negative if getting cash back)', placeholder: '5k', visible: () => formInputs.scenario === 'sell_vs_keep' && formInputs.includeRefinance === 'yes', fieldType: 'currency' },
       { key: 'mortgageInterestDeduction', label: 'Mortgage Interest Deduction (%)', help: 'Effective tax rate if itemizing mortgage interest (e.g., 25%). Set to 0 if not itemizing or if rental property (costs already offset income)', placeholder: '0', visible: () => formInputs.scenario !== 'payoff_vs_invest', fieldType: 'rate' },
       { key: 'extraMonthlyPayment', label: 'Extra Monthly Payment', help: 'Additional amount to pay toward principal each month (for payoff vs invest comparison)', placeholder: '500', visible: () => formInputs.scenario === 'payoff_vs_invest', fieldType: 'currency' },
+      { key: 'extraUpfrontPayment', label: 'Extra Upfront Payment', help: 'One-time lump sum payment toward principal at start', placeholder: '0', visible: () => formInputs.scenario === 'payoff_vs_invest', fieldType: 'currency' },
+      { key: 'recalculatePayment', label: 'Recalculate Monthly Payment', help: 'If yes, PAYOFF monthly payment is recalculated based on reduced principal after upfront payment (same term, lower payment)', placeholder: 'no', visible: () => formInputs.scenario === 'payoff_vs_invest' && parseFloat(formInputs.extraUpfrontPayment) > 0, toggleValues: ['yes', 'no'], fieldType: 'toggle' },
 
       { key: 'header_renting', label: '', help: '', placeholder: '', visible: () => formInputs.scenario !== 'payoff_vs_invest', isHeader: true, headerText: 'RENTING' },
       { key: 'includeRentingSell', label: 'Include Renting Analysis', help: 'Toggle if selling means you\'ll need to rent', placeholder: 'no', visible: () => formInputs.scenario === 'sell_vs_keep', toggleValues: ['yes', 'no'], fieldType: 'toggle' },
@@ -224,6 +226,8 @@
       closingCosts: formInputs.closingCosts ? parseAmount(formInputs.closingCosts.toString()) : undefined,
       mortgageInterestDeduction: parseFloat(formInputs.mortgageInterestDeduction) || 0,
       extraMonthlyPayment: formInputs.extraMonthlyPayment ? parseAmount(formInputs.extraMonthlyPayment.toString()) : undefined,
+      extraUpfrontPayment: formInputs.extraUpfrontPayment ? parseAmount(formInputs.extraUpfrontPayment.toString()) : undefined,
+      recalculatePayment: formInputs.recalculatePayment === 'yes' || formInputs.recalculatePayment === true,
       rentDeposit: parseAmount(formInputs.rentDeposit.toString()),
       monthlyRent: parseAmount(formInputs.monthlyRent.toString()),
       annualRentCosts: parseAmount(formInputs.annualRentCosts.toString()),

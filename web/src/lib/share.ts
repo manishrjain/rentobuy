@@ -19,6 +19,8 @@ const KEY_MAP: Record<string, string> = {
   closingCosts: 'cc',
   mortgageInterestDeduction: 'mid',
   extraMonthlyPayment: 'emp',
+  extraUpfrontPayment: 'eup',
+  recalculatePayment: 'rcp',
   rentDeposit: 'rd',
   monthlyRent: 'mr',
   annualRentCosts: 'arc',

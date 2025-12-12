@@ -640,10 +640,21 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
   } else if (inputs.scenario === 'payoff_vs_invest') {
     // payoff_vs_invest scenario (no mortgage interest deduction)
     const extraPayment = inputs.extraMonthlyPayment || 0;
+    const extraUpfront = inputs.extraUpfrontPayment || 0;
     const monthlyRate = inputs.loanRate / 100 / 12;
     const monthlyInvestmentRate = inputs.investmentReturnRate / 100 / 12;
     const loanValues = getEffectiveLoanValues(inputs);
     const regularPayment = loanValues.monthlyLoanPayment;
+    const loanTermMonths = inputs.remainingLoanTerm || inputs.loanTerm;
+
+    // Calculate PAYOFF path monthly payment (may be recalculated if toggle is on)
+    const upfrontPrincipal = Math.min(extraUpfront, loanValues.effectiveLoanAmount);
+    const payoffStartingBalance = loanValues.effectiveLoanAmount - upfrontPrincipal;
+    let payoffRegularPayment = regularPayment;
+    if (inputs.recalculatePayment && extraUpfront > 0 && payoffStartingBalance > 0) {
+      // Recalculate monthly payment based on reduced principal, same term
+      payoffRegularPayment = calculateMonthlyPayment(payoffStartingBalance, monthlyRate, loanTermMonths);
+    }
 
     // First calculate INVEST path to get effective payments for comparison
     const maxMonths = 360;
@@ -653,11 +664,11 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
     const investCumulativeContributions: number[] = new Array(maxMonths);
     const investMonthlyEffectivePayment: number[] = new Array(maxMonths);
 
-    let investInvestment = 0;
+    // INVEST path: invest the upfront amount instead of paying down loan
+    let investInvestment = extraUpfront;
     let investBalance = loanValues.effectiveLoanAmount;
     let investTotalEffectivePayment = 0;
-    let investTotalContributions = 0;
-    const loanTermMonths = inputs.remainingLoanTerm || inputs.loanTerm;
+    let investTotalContributions = extraUpfront;
 
     for (let i = 0; i < maxMonths; i++) {
       if (i < loanTermMonths && investBalance > 0) {
@@ -695,12 +706,15 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
     const payoffCumulativeContributions: number[] = new Array(maxMonths);
     const payoffCumulativeReturns: number[] = new Array(maxMonths);
 
-    let payoffBalance = loanValues.effectiveLoanAmount;
-    let payoffNetPosition = 0; // Can be negative (deficit) or positive (investment)
-    let loanPaidOff = false;
-    let payoffTotalPrincipal = 0;
+    // PAYOFF path: apply upfront payment to reduce starting loan balance
+    // Note: upfront payment is same cost to both paths, just allocated differently
+    // So payoffNetPosition starts at 0 - deficit only tracks extra monthly payment difference
+    let payoffBalance = payoffStartingBalance;
+    let payoffNetPosition = 0;
+    let loanPaidOff = payoffBalance <= 0;
+    let payoffTotalPrincipal = upfrontPrincipal;
     let payoffTotalInterest = 0;
-    let payoffTotalEffectivePayment = 0;
+    let payoffTotalEffectivePayment = extraUpfront; // Upfront counts as effective payment
     let payoffTotalContributions = 0;
     let payoffTotalReturns = 0;
 
@@ -708,8 +722,8 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
       if (!loanPaidOff && payoffBalance > 0) {
         // Still paying off loan with extra payments - no investment yet
         const interestPayment = payoffBalance * monthlyRate;
-        const regularPrincipal = regularPayment - interestPayment;
-        const desiredPrincipalPayment = regularPrincipal + extraPayment;
+        const principalFromPayment = payoffRegularPayment - interestPayment;
+        const desiredPrincipalPayment = principalFromPayment + extraPayment;
         // Cap principal payment at remaining balance (final month adjustment)
         const actualPrincipalPayment = Math.min(desiredPrincipalPayment, payoffBalance);
         // Payment = interest + actual principal (no tax deduction)
@@ -727,7 +741,7 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
         // payoffNetPosition stays 0 while paying off loan
       } else {
         // Loan paid off - contribute freed-up payments to investment
-        const contribution = regularPayment + extraPayment;
+        const contribution = payoffRegularPayment + extraPayment;
         payoffNetPosition += contribution;
         payoffTotalContributions += contribution;
 
@@ -751,12 +765,12 @@ export function calculate(inputs: CalculatorInputs): CalculationResults {
       if (period.months === 0) {
         return {
           period: 'PAYOFF ' + period.label,
-          principalPaid: 0,
+          principalPaid: upfrontPrincipal,
           interestPaid: 0,
           taxDeduction: 0,
           effectiveInterest: 0,
-          effectiveLoanPayment: 0,
-          loanBalance: loanValues.effectiveLoanAmount,
+          effectiveLoanPayment: extraUpfront,
+          loanBalance: payoffStartingBalance,
         };
       }
       const monthIndex = Math.min(period.months - 1, maxMonths - 1);
